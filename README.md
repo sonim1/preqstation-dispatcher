@@ -56,7 +56,6 @@ OpenClaw conversation context can accumulate tokens over long runs.
 
 Optional structured fields in the same message:
 
-- `task_name="<task title>"`
 - `branch_name="<git-branch>"`
 
 ## Engine selection rules
@@ -86,6 +85,7 @@ After `project_cwd` is resolved, create task worktree `cwd`:
   1. use message `branch_name` when provided
   2. fallback to `codex/<project_key>`
 - if provided `branch_name` does not include project key, normalize to `codex/<project_key>/<branch_name>`
+- worktree directory naming: `<worktree_root>/<project_key>/<branch_slug>` where `branch_slug` is `branch_name` with `/` replaced by `-`
 - run all coding-agent commands inside this worktree `cwd` (never in primary checkout)
 
 ## MEMORY.md usage
