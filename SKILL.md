@@ -139,6 +139,16 @@ When `project_cwd` cannot be resolved, or exact project key is missing in `MEMOR
 4. Confirm mapping in one short line.
 5. Continue the original task using the newly resolved `project_cwd`, then create task worktree `cwd` and execute.
 
+## Sync command flow (required)
+
+When user intent is `preqstation sync` (for example `/skills preqstation sync`):
+
+1. Do not launch coding-agent CLI commands.
+2. Read project mappings from `MEMORY.md` (`key -> cwd`).
+3. Build one payload list: `{ projectKey, localPath }[]`.
+4. Call PREQSTATION MCP tool `preq_sync_projects` once with the full list.
+5. Return summary counts (`total/synced/unsynced`) and backend response.
+
 ## Branch naming convention (project key based)
 
 Resolve branch name using this priority:
