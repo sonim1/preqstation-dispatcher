@@ -31,83 +31,49 @@ Do NOT use this skill for:
 
 ## Hard rules
 
-1. Always run coding agents with `pty:true`.
+1. Always run coding agents with `pty:true` and `background:true` by default (foreground only when user explicitly asks).
 2. Respect the engine the user requested. If unspecified, default to `claude`.
 3. Do not kill sessions only because they are slow; poll/log first.
-4. Never launch coding agents in `~/clawd/` or `~/.openclaw/`.
-5. Treat resolved project path as a primary checkout source only; create a git worktree before launching any coding agent.
-6. Never run coding-agent commands in the primary checkout path.
+4. Never launch coding agents in `~/clawd/`, `~/.openclaw/`, or primary checkout paths.
+5. Always create a git worktree before launching any coding agent; keep execution scoped to worktree `<cwd>` only.
+6. Worktree branch names must include the resolved project key.
 7. PR review must run in a temp clone or git worktree, never in a live primary checkout.
-8. Keep execution scoped to resolved worktree `<cwd>` only.
-9. Worktree branch names must include the resolved project key.
-10. Launch coding agents with `background:true` by default. Use foreground only when user explicitly asks for blocking/synchronous execution.
+8. Run preflight checks (`command -v git`, `command -v <engine>`) before any engine command.
+9. Use `dangerously-*` / sandbox-disable flags only in resolved task worktrees after passing safety gates.
+10. For planning/read-only requests, do not launch engine commands.
 
-## Runtime prerequisites (required)
+## Runtime prerequisites
 
-- `git` must be installed and available on `PATH`.
-- At least one engine binary must be installed: `claude`, `codex`, or `gemini`.
-- Environment variables used by this skill:
-  - `OPENCLAW_WORKTREE_ROOT` (optional, default `/tmp/openclaw-worktrees`)
+- `git` and at least one engine binary (`claude`, `codex`, or `gemini`) on `PATH`.
+- `OPENCLAW_WORKTREE_ROOT` (optional, default `/tmp/openclaw-worktrees`).
 - This skill reads and updates `MEMORY.md` project mappings with absolute paths.
-
-## Execution safety gates (required)
-
-Before running any engine command:
-
-1. Run preflight checks:
-   - `command -v git`
-   - `command -v <engine>`
-2. Continue only when execution `cwd` is a resolved git worktree path for this task.
-3. Never run engine commands in primary checkout paths or inside `~/clawd/` / `~/.openclaw/`.
-4. Use `dangerously-*` / sandbox-disable flags only for actual coding execution with local trusted CLIs.
-5. For planning/read-only requests, do not launch engine commands.
 
 ## Input interpretation
 
 Parse from user message:
 
-1. `engine`
-- if explicitly provided: `claude`, `codex`, or `gemini`
-- default: `claude`
+1. `engine` — `claude` | `codex` | `gemini` (default: `claude`)
 
-2. `task`
-- first token matching `<KEY>-<number>` (example: `PRJ-284`)
-- optional
+2. `task` — first token matching `<KEY>-<number>` (example: `PRJ-284`), optional
 
 3. `branch_name` (optional)
-- parse first token matching one of:
-  - `branch_name=<value>`
-  - `branch_name: <value>`
-  - `branch=<value>`
-- strip surrounding quotes from `<value>`
-- normalize to lowercase; replace whitespace with `-`
-- if it does not include the resolved `project_key`, prefix with `preqstation/<project_key>/`
+- parse: `branch_name=<value>`, `branch_name: <value>`, or `branch=<value>`
+- strip quotes, normalize to lowercase, replace whitespace with `-`
+- if missing resolved `project_key`, prefix with `preqstation/<project_key>/`
 
 4. `project_cwd` (required to prepare execution)
-- if absolute path is explicitly provided, use it
-- else resolve by `project` key from `MEMORY.md`
+- if absolute path provided, use it
+- else resolve by project key from `MEMORY.md`
 - else if task prefix key matches a `MEMORY.md` project key, use that path
-- if unresolved, ask for project key/name and absolute path, update `MEMORY.md`, then continue execution
-- if an exact project key does not exist in `MEMORY.md`, always ask the user before execution (do not guess)
+- if unresolved, ask for project key/path, update `MEMORY.md`, then continue
 
-5. `objective`
-- use the user request as the execution objective
+5. `objective` — use the user request as the execution objective
 
-6. `cwd` (required to execute)
-- default: per-task git worktree path derived from `project_cwd`
-- create worktree before launching engine commands
-- if `project_cwd` is not a git checkout, ask for a git workspace path before execution
+6. `cwd` — per-task git worktree path derived from `project_cwd`; create worktree before launching
 
-7. `progress_mode` (status update style)
-- if user explicitly says `live`, `realtime`, `frequent`, `detailed`: use `live`
-- if user explicitly says `sparse`, `concise`, `summary-only`, `key events only`: use `sparse`
-- default: `sparse`
-- when not explicit, ask once only if user's wording is ambiguous/conflicting
+7. `progress_mode` — `sparse` (default) or `live` (if user says `live`/`realtime`/`frequent`/`detailed`)
 
-8. `context_compaction`
-- default: keep the current conversation/session and compact status updates instead of starting a new session
-- avoid replaying full logs; send a short checkpoint summary and continue from that summary
-- start a new session only when user explicitly requests it or when platform limits prevent continuing in the current session
+8. `context_compaction` — compact status updates in current session; avoid replaying full logs; start new session only when user requests or platform limits force it
 
 ## MEMORY.md resolution
 
@@ -127,53 +93,39 @@ Parse from user message:
 - Normalize key to lowercase kebab-case before writing.
 - If user provides project name, store it in `note`; otherwise use `workspace`.
 
-## Missing project mapping flow (required)
+## Missing project mapping flow
 
-When `project_cwd` cannot be resolved, or exact project key is missing in `MEMORY.md`:
+When `project_cwd` cannot be resolved:
 
-1. Ask one short question requesting:
-- project key (or confirm inferred key from task prefix)
-- absolute workspace path
-- optional project name for note
+1. Ask one short question: project key, absolute workspace path, optional project name.
 2. Validate path is absolute.
-3. Update or insert the `MEMORY.md` row immediately.
+3. Update `MEMORY.md` row immediately.
 4. Confirm mapping in one short line.
-5. Continue the original task using the newly resolved `project_cwd`, then create task worktree `cwd` and execute.
+5. Continue the original task: resolve `project_cwd`, create worktree `cwd`, execute.
 
-## Branch naming convention (project key based)
+## Branch naming convention
 
-Resolve branch name using this priority:
-
-1. parsed `branch_name` from user message
-2. fallback: `preqstation/<project_key>`
+Priority: parsed `branch_name` from user message → fallback `preqstation/<project_key>`.
 
 Rules:
+- `<project_key>` = resolved key from `MEMORY.md`, lowercase kebab-case.
+- Branch must include `project_key`; if missing, prefix with `preqstation/<project_key>/`.
+- Reject unsafe names (`..`, leading `/`, empty) and ask user for a valid name.
 
-- `<project_key>` must be the resolved project key from `MEMORY.md`.
-- normalize to lowercase and kebab-case-friendly tokens.
-- branch must include resolved `project_key`; if missing, prefix with `preqstation/<project_key>/`.
-- reject unsafe names (`..`, leading `/`, or empty result) and ask user for a valid branch name.
+## Worktree-first execution
 
-## Worktree-first execution (required default)
+After resolving `project_cwd` and `project_key`:
 
-After resolving `project_cwd` and `project_key`, prepare execution workspace:
-
-1. Build branch name using this skill's convention:
-- `<branch_name>`
-2. Build per-task worktree path:
-- default root: `${OPENCLAW_WORKTREE_ROOT:-/tmp/openclaw-worktrees}`
-- directory: `<worktree_root>/<project_key>/<branch_slug>`
-- `branch_slug` = `<branch_name>` with `/` replaced by `-`
-3. Create the worktree from `project_cwd` before launching engine:
-- new branch: `git -C <project_cwd> worktree add -b <branch_name> <cwd> HEAD`
-- existing branch: `git -C <project_cwd> worktree add <cwd> <branch_name>`
+1. Build branch name per convention above.
+2. Build worktree path: `<worktree_root>/<project_key>/<branch_slug>` (`branch_slug` = `branch_name` with `/` → `-`).
+3. Create worktree:
+   - new branch: `git -C <project_cwd> worktree add -b <branch_name> <cwd> HEAD`
+   - existing branch: `git -C <project_cwd> worktree add <cwd> <branch_name>`
 4. Use this worktree path as `<cwd>` for prompt rendering and engine execution.
 
 ## Prompt rendering (required template)
 
-Do not forward raw user text directly. Render this template:
-
-In this template, `<cwd>` must be the task worktree path (not the primary checkout path).
+Do not forward raw user text directly. `<cwd>` must be the task worktree path.
 
 ```text
 Task ID: <task or N/A>
@@ -218,198 +170,51 @@ Worktree Cleanup (required — run after all work is done):
 7) Remove this worktree before exiting:
     git -C <project_cwd> worktree remove <cwd> --force
     git -C <project_cwd> worktree prune
+
+When completely finished, run:
+openclaw system event --text "Done: <brief summary>" --mode now
 ```
 
-## Engine commands (current policy retained)
+## Engine commands
 
-All engine commands must be launched via bash with PTY and explicit workdir.
-
-Why `dangerously-*` flags are retained:
-
-- This skill targets non-interactive PTY/background execution.
-- Permission prompts can block unattended runs; these flags avoid that blocking behavior.
-- These flags are allowed only after passing the required safety gates above and only in resolved task worktrees.
-- If your environment does not allow these flags, fail fast with a short reason instead of silently falling back.
-
-### Claude Code
+All engine commands: `pty:true`, explicit `workdir:<cwd>`, `background:true`.
 
 ```bash
-bash pty:true workdir:<cwd> command:"claude --dangerously-skip-permissions '<rendered_prompt>'"
+# Claude Code
+bash pty:true workdir:<cwd> background:true command:"claude --dangerously-skip-permissions '<rendered_prompt>'"
+
+# Codex CLI
+bash pty:true workdir:<cwd> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox '<rendered_prompt>'"
+
+# Gemini CLI
+bash pty:true workdir:<cwd> background:true command:"GEMINI_SANDBOX=false gemini -p '<rendered_prompt>'"
 ```
 
-### Codex CLI
-
-```bash
-bash pty:true workdir:<cwd> command:"codex exec --dangerously-bypass-approvals-and-sandbox '<rendered_prompt>'"
-```
-
-### Gemini CLI
-
-```bash
-bash pty:true workdir:<cwd> command:"GEMINI_SANDBOX=false gemini -p '<rendered_prompt>'"
-```
-
-## Bash execution interface (required)
-
-Use bash with PTY and background mode by default.
-
-### Bash parameters
-
-| Parameter    | Type    | Required | Purpose |
-| ------------ | ------- | -------- | ------- |
-| `command`    | string  | yes      | Engine command to run |
-| `pty`        | boolean | yes      | Must be `true` for coding-agent CLIs |
-| `workdir`    | string  | yes      | Per-task worktree `<cwd>` |
-| `background` | boolean | no       | Run asynchronously and return session id (this skill defaults to `true`) |
-| `timeout`    | number  | no       | Hard timeout in seconds |
-| `elevated`   | boolean | no       | Host execution if policy allows |
-
-### Process actions for background sessions
-
-Use these actions as standard controls:
-
-- `list`: list sessions
-- `poll`: check running/done status
-- `log`: read incremental output
-- `write`: send raw stdin
-- `submit`: send stdin + newline
-- `kill`: terminate a session only when required
-
-## Execution patterns (workdir + background + pty)
-
-### One-shot example
-Create a task worktree, then run inside that worktree (default background):
+One-shot example (worktree + launch):
 
 ```bash
 git -C <project_cwd> worktree add -b <branch_name> /tmp/openclaw-worktrees/<project_key>/<branch_slug> HEAD
 bash pty:true workdir:/tmp/openclaw-worktrees/<project_key>/<branch_slug> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox '<rendered_prompt>'"
 ```
 
-The Pattern: workdir + background + pty
-For longer tasks, use background mode with PTY:
-```
-# Start agent in task worktree (with PTY!)
-bash pty:true workdir:<cwd> background:true command:"codex exec --full-auto 'Build a snake game'"
-# Returns sessionId for tracking
-
-# Monitor progress
-process action:log sessionId:XXX
-
-# Check if done
-process action:poll sessionId:XXX
-
-# Send input (if agent asks a question)
-process action:write sessionId:XXX data:"y"
-
-# Submit with Enter (like typing "yes" and pressing Enter)
-process action:submit sessionId:XXX data:"yes"
-
-# Kill if needed
-process action:kill sessionId:XXX
-```
-
-Why workdir matters: Agent wakes up in a focused directory, doesn't wander off reading unrelated files (like your soul.md 😅).
-
-### If user input is required mid-run
+PR review (worktree only, never in primary checkout):
 
 ```bash
-process action:write sessionId:<id> data:"y"
-process action:submit sessionId:<id> data:"yes"
-```
-
-## PR review safety pattern (temp dir/worktree only)
-
-Never run PR review in live OpenClaw folders.
-
-```bash
-# default: git worktree review (resolved branch naming)
 git worktree add -b <branch_name> /tmp/<project_key>-review <base_branch>
 bash pty:true workdir:/tmp/<project_key>-review command:"codex review --base <base_branch>"
-
-# fallback: temp clone review (only when local checkout is unavailable)
-REVIEW_DIR=$(mktemp -d)
-git clone <repo> "$REVIEW_DIR"
-cd "$REVIEW_DIR" && gh pr checkout <pr_number>
-bash pty:true workdir:"$REVIEW_DIR" command:"codex review --base origin/main"
 ```
 
-## Issue worktree pattern
+## Progress updates
 
-```bash
-git worktree add -b <branch_name> /tmp/<project_key> main
-
-bash pty:true workdir:/tmp/<project_key> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox 'Fix issue #101. Commit after validation.'"
-bash pty:true workdir:/tmp/<project_key> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox 'Fix issue #102. Commit after validation.'"
-
-process action:list
-process action:log sessionId:<id>
-```
-
-## Progress Updates (Critical)
-
-For background runs, choose one of two modes:
-
-- `sparse` (default): low-frequency updates only on state change
-- `live`: higher-frequency updates while work is running
-- Primary purpose of `sparse`: reduce token usage and messaging cost while preserving key visibility.
-
-How user can request mode in a message:
-
-- `... progress live`
-- `... live updates`
-- `... progress sparse`
-- `... sparse updates`
-
-When you spawn coding agents in the background, keep the user in the loop based on selected mode.
-
-- In `sparse` mode:
-  - Send 1 short message when you start (what's running + where).
-  - Then only update again when something changes:
-    - a milestone completes (build finished, tests passed)
-    - the agent asks a question / needs input
-    - you hit an error or need user action
-    - the agent finishes (include what changed + where)
-- In `live` mode:
-  - Send the same state-change updates as `sparse`.
-  - Add periodic short heartbeat updates while running (for example, every 1-2 minutes) with latest active step.
-- If you kill a session, immediately say you killed it and why.
-
-This prevents the user from seeing only "Agent failed before reply" and having no idea what happened.
-
-## Context compaction for long runs
-
-OpenClaw thread context grows over time. Keep it compact during long background tasks:
-
-- Prefer `sparse` unless the user explicitly asks for `live`.
-- Use short checkpoint summaries at milestones; avoid repeating prior logs.
-- Include only: current state, what changed, next step, blocker (if any).
-- If the thread becomes too large/noisy, post one compaction summary and continue in the same thread/session whenever possible.
-
-## Auto-notify on completion
-
-For long-running jobs, append a completion trigger to the rendered prompt:
-
-```text
-When completely finished, run this command:
-openclaw system event --text "Done: <brief summary>" --mode now
-```
-
-Example:
-
-```bash
-bash pty:true workdir:<cwd> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox '<rendered_prompt>
-
-When completely finished, run:
-openclaw system event --text \"Done: implemented requested PREQSTATION task\" --mode now'"
-```
+- **sparse** (default): update only on state change — start, milestone, error, input needed, completion.
+- **live**: same as sparse + periodic heartbeat every 1-2 minutes.
+- If you kill a session, immediately say why.
+- Keep updates short: current state, what changed, next step, blocker (if any).
+- Avoid replaying full logs; use checkpoint summaries.
 
 ## Output policy
 
-Return only a short completion summary.
-Success format:
-`completed: <task or N/A> via <engine> at <cwd>`
-
-Failure format:
-`failed: <task or N/A> via <engine> at <cwd or N/A> - <short reason>`
+Success: `completed: <task or N/A> via <engine> at <cwd>`
+Failure: `failed: <task or N/A> via <engine> at <cwd or N/A> - <short reason>`
 
 Do not dump raw stdout/stderr unless user explicitly asks.
