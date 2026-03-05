@@ -44,7 +44,7 @@ Parse from user message:
 - Read `MEMORY.md` `Projects` table (`key | cwd | note`) from repo root.
 - Match project keys by exact match only (case-insensitive).
 - Task prefix = candidate key (e.g. `PROS-102` → `pros`).
-- If unresolved: ask user for key + absolute path, update `MEMORY.md`, then continue.
+- If cwd is `TBD` or missing: ask user for the absolute path, update `MEMORY.md`, then continue.
 - Format: `| <key> | <absolute-path> | <note> |`, one row per key, lowercase kebab-case.
 
 ## Worktree-first execution
