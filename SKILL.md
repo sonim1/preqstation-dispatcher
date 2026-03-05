@@ -207,12 +207,45 @@ In this template, `<cwd>` must be the task worktree path (not the primary checko
 Task ID: <task or N/A>
 Project Key: <project key or N/A>
 Branch Name: <branch_name or N/A>
+Skill: preqstation (use preq_* MCP tools for task lifecycle)
 User Objective: <objective>
+
 Execution Requirements:
 1) Work only inside <cwd>.
-2) Complete the requested work.
-3) Use branch <branch_name> for commits/pushes when provided.
-4) After completion, return a short completion summary.
+2) Use branch <branch_name> for commits/pushes when provided.
+3) Follow the PREQSTATION Workflow below to completion.
+
+PREQSTATION Workflow (required — use preq_* MCP tools):
+4) preq_get_task("<task>") — fetch task details, current status, and acceptance criteria.
+5) preq_get_project_settings("<project_key>") — get deploy strategy
+   (strategy, default_branch, auto_pr, commit_on_review).
+6) Based on current task status from step 4:
+
+   If inbox:
+     → preq_plan_task("<task>", plan) — write implementation plan, move to todo.
+     → Stop here. Do not implement.
+
+   If todo:
+     → preq_start_task("<task>")
+     → Implement code changes and run tests.
+     → Follow deploy strategy from step 5.
+     → preq_complete_task("<task>", summary, branch, pr_url)
+
+   If in_progress:
+     → Continue implementation and run tests.
+     → Follow deploy strategy from step 5.
+     → preq_complete_task("<task>", summary, branch, pr_url)
+
+   If review:
+     → Run verification (tests, build, lint).
+     → preq_review_task("<task>") on success.
+
+   On any failure: preq_block_task("<task>", reason)
+
+Worktree Cleanup (required — run after all work is done):
+7) Remove this worktree before exiting:
+    git -C <project_cwd> worktree remove <cwd> --force
+    git -C <project_cwd> worktree prune
 ```
 
 ## Engine commands (current policy retained)
