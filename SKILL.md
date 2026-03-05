@@ -26,8 +26,6 @@ Do NOT use this skill for:
 ## Quick trigger examples
 
 - `/skill preqstation: implement the PROJ-1`
-- `/skills preqstation project-sync all`
-- `project-sync proj`
 - `preqstation: plan PROJ-76 using Claude Code`
 - `preq: implement PROJ-1`
 
@@ -111,18 +109,6 @@ Parse from user message:
 - avoid replaying full logs; send a short checkpoint summary and continue from that summary
 - start a new session only when user explicitly requests it or when platform limits prevent continuing in the current session
 
-9. `sync_target` (for project sync intent)
-- parse sync command aliases:
-  - `project-sync all`
-  - `project-sync <project_key>`
-  - `/skills preqstation sync` (backward-compatible)
-  - `/skills preqstation sync all`
-  - `/skills preqstation sync <project_key>`
-- normalize `<project_key>` to lowercase key format
-- default target:
-  - if explicit key provided, target that single project
-  - else `all`
-
 ## MEMORY.md resolution
 
 - Read `MEMORY.md` from this repository root.
@@ -153,20 +139,6 @@ When `project_cwd` cannot be resolved, or exact project key is missing in `MEMOR
 3. Update or insert the `MEMORY.md` row immediately.
 4. Confirm mapping in one short line.
 5. Continue the original task using the newly resolved `project_cwd`, then create task worktree `cwd` and execute.
-
-## Sync command flow (required)
-
-When user intent is project sync (for example `project-sync all`, `project-sync proj`, or `/skills preqstation sync`):
-
-1. Do not launch coding-agent CLI commands.
-2. Read project mappings from `MEMORY.md` (`key -> cwd`).
-3. Select sync scope by `sync_target`:
-- `all`: include every mapping row.
-- single project key: include only the exact matching key.
-- if single key is missing in `MEMORY.md`, ask user for mapping and stop.
-4. Build one payload list: `{ projectKey, localPath }[]` from selected scope.
-5. Call PREQSTATION MCP tool `preq_sync_projects` once per user command (single call, with selected list).
-6. Return summary counts (`total/synced/unsynced`) and backend response.
 
 ## Branch naming convention (project key based)
 
