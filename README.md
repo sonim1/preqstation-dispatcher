@@ -61,9 +61,6 @@ OpenClaw conversation context can accumulate tokens over long runs.
 5. `Implement API pagination and add tests in the example project.`
 6. `What is currently running in OpenClaw sessions?`
 7. `Show progress for session openclaw-claude-20260221-131240.`
-8. `/skills preqstation-dispatch sync`
-9. `project-sync all`
-10. `project-sync proj`
 
 Optional structured fields in the same message:
 
@@ -106,17 +103,6 @@ After `project_cwd` is resolved, create task worktree `cwd`:
 - if provided `branch_name` does not include project key, normalize to `preqstation/<project_key>/<branch_name>`
 - worktree directory naming: `<worktree_root>/<project_key>/<branch_slug>` where `branch_slug` is `branch_name` with `/` replaced by `-`
 - run all coding-agent commands inside this worktree `cwd` (never in primary checkout)
-
-Project sync trigger (supported aliases):
-
-- `project-sync all` (sync all mapped projects)
-- `project-sync <PROJECT_KEY>` (sync one mapped project by exact key)
-- `/skills preqstation-dispatch sync` (same as all)
-- `/skills preqstation-dispatch sync <PROJECT_KEY>` (single project)
-- do not launch coding agents
-- read OpenClaw agent memory mappings and choose target scope (all or single key)
-- call PREQSTATION MCP tool `preq_sync_projects` once with the selected list (single key means one-item list)
-- backend records synced/not-synced per project, and Projects view shows status
 
 ## MEMORY.md usage
 
