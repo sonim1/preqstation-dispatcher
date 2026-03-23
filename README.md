@@ -65,7 +65,7 @@ OpenClaw conversation context can accumulate tokens over long runs.
 Optional structured fields in the same message:
 
 - `branch_name="<git-branch>"`
-- `dogfood_run_id="<run-id>"`
+- `qa_run_id="<run-id>"`
 
 ## Engine selection rules
 
@@ -102,7 +102,7 @@ After `project_cwd` is resolved, create task worktree `cwd`:
   1. use message `branch_name` when provided
   2. fallback to `preqstation/<project_key>`
 - if provided `branch_name` does not include project key, normalize to `preqstation/<project_key>/<branch_name>`
-- dogfood dispatch may omit task id and use `project_key` + `dogfood_run_id` instead; keep both fields in `.preqstation-prompt.txt`
+- QA dispatch may omit task id and use `project_key` + `qa_run_id` instead; keep both fields in `.preqstation-prompt.txt`
 - worktree directory naming: `<worktree_root>/<project_key>/<branch_slug>` where `branch_slug` is `branch_name` with `/` replaced by `-`
 - after worktree creation, symlink runtime local env files from `project_cwd` into `cwd` when they exist in the primary checkout, such as `.env`, `.env.local`, and `.env.*.local`; do not treat committed templates like `.env.example`, `.env.sample`, or `.env.template` as symlink targets; if the target path in `cwd` already exists as a regular file for a required local env file, stop and report failure instead of overwriting it
 - run all coding-agent commands inside this worktree `cwd` (never in primary checkout)

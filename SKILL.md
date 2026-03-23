@@ -30,10 +30,10 @@ Note: Telegram channels use ! prefix instead of / (e.g. !/skill preqstation-disp
 Parse from user message:
 
 1. engine — `claude-code` | `codex` | `gemini-cli`
-2. task — first token matching <KEY>-<number> (e.g. PRJ-284); may be absent for branch-level dogfood
+2. task — first token matching <KEY>-<number> (e.g. PRJ-284); may be absent for branch-level QA
 3. project_key — from task prefix when task exists, otherwise first standalone token matching <KEY>
 4. branch_name — parse from branch_name=<value> or branch=<value>; normalize lowercase, replace whitespace with -; if missing project_key prefix with preqstation/<project_key>/
-5. dogfood_run_id — parse from dogfood_run_id=<value> when present
+5. qa_run_id — parse from qa_run_id=<value> when present
 6. project_cwd — Read Project Path Resolution section
 7. objective — user request as execution objective
 8. cwd — worktree path: <worktree_root>/<project_key>/<branch_slug>
@@ -67,7 +67,7 @@ Do not forward raw user text. Render this template into `<cwd>/.preqstation-prom
 Task ID: <task or N/A>
 Project Key: <project key or N/A>
 Branch Name: <branch_name or N/A>
-Dogfood Run ID: <dogfood_run_id or N/A>
+QA Run ID: <qa_run_id or N/A>
 Lifecycle Skill: preqstation (use preq_* MCP tools for task lifecycle)
 User Objective: <objective>
 
@@ -81,7 +81,7 @@ Execution Requirements:
 7) Do not ask the user to paste the task card text or `preq_get_task` output when `preq_get_task("<task_id>")` is available. Ask only if the tool call itself fails or PREQ tools are unavailable.
 8) Use the preqstation lifecycle skill as the single source of truth for PREQ task rules, status transitions, deploy handling, and preq_* tool usage. Do not restate or override that workflow here.
 9) If User Objective starts with `plan`, do not run tests, build, lint, or other verification commands. Read local code only enough to produce the plan and stop after `preq_plan_task`.
-10) If User Objective starts with `dogfood`, Task ID may be `N/A`. In that branch, use `Dogfood Run ID` as the external reporting handle, update it through the PREQSTATION skill, and do not invent a task lifecycle transition.
+10) If User Objective starts with `qa`, Task ID may be `N/A`. In that branch, use `QA Run ID` as the external reporting handle, update it through the PREQSTATION skill, and do not invent a task lifecycle transition.
 11) If `./.preqstation-prompt.txt` is missing in the current workspace, stop and report a dispatch failure instead of improvising from another directory.
 12) Worktree cleanup after all work:
    git -C <project_cwd> worktree remove <cwd> --force
@@ -92,7 +92,7 @@ Execution Requirements:
 
 bash
 # Bootstrap prompt (same idea for all engines):
-# "Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work. If User Objective is dogfood, use Dogfood Run ID from that file and report through the PREQSTATION skill."
+# "Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work. If User Objective is qa, use QA Run ID from that file and report through the PREQSTATION skill."
 
 ---
 
