@@ -1,0 +1,124 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+
+const ENV_FILE_PATTERNS = [/^\.env$/u, /^\.env\.local$/u, /^\.env\..+\.local$/u];
+const TEMPLATE_ENV_FILES = new Set([
+  ".env.example",
+  ".env.sample",
+  ".env.template",
+]);
+
+function git(args, cwd) {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+function branchExists(projectCwd, branchName) {
+  try {
+    execFileSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`], {
+      cwd: projectCwd,
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isReusableWorktree(cwd) {
+  return fs
+    .access(path.join(cwd, ".git"))
+    .then(() => true)
+    .catch(() => false);
+}
+
+export async function ensureProjectCheckout(projectCwd) {
+  const stat = await fs.stat(projectCwd).catch(() => null);
+  if (!stat?.isDirectory()) {
+    throw new Error(`Project path does not exist: ${projectCwd}`);
+  }
+
+  const gitDir = path.join(projectCwd, ".git");
+  const gitStat = await fs.lstat(gitDir).catch(() => null);
+  if (!gitStat) {
+    throw new Error(`Project path is not a git checkout: ${projectCwd}`);
+  }
+}
+
+async function symlinkRuntimeEnvFiles(projectCwd, cwd) {
+  const entries = await fs.readdir(projectCwd);
+  for (const name of entries) {
+    if (TEMPLATE_ENV_FILES.has(name)) {
+      continue;
+    }
+    if (!ENV_FILE_PATTERNS.some((pattern) => pattern.test(name))) {
+      continue;
+    }
+
+    const source = path.join(projectCwd, name);
+    const target = path.join(cwd, name);
+    const sourceStat = await fs.lstat(source).catch(() => null);
+    if (!sourceStat?.isFile()) {
+      continue;
+    }
+
+    const targetStat = await fs.lstat(target).catch(() => null);
+    if (targetStat && !targetStat.isSymbolicLink()) {
+      throw new Error(`Refusing to overwrite existing regular file: ${target}`);
+    }
+    if (targetStat?.isSymbolicLink()) {
+      await fs.rm(target);
+    }
+
+    await fs.symlink(source, target);
+  }
+}
+
+export function normalizeBranchName({ projectKey, taskKey, branchName }) {
+  if (branchName) {
+    return branchName;
+  }
+
+  const normalizedProjectKey = projectKey.toLowerCase();
+  const normalizedTaskKey = taskKey.toLowerCase().replace(/[^a-z0-9-]+/gu, "-");
+  return `preqstation/${normalizedProjectKey}/task-${normalizedTaskKey}`;
+}
+
+export async function prepareWorktree({
+  projectCwd,
+  projectKey,
+  taskKey = `${projectKey}-dispatch`,
+  branchName,
+  worktreeRoot,
+}) {
+  await ensureProjectCheckout(projectCwd);
+
+  const resolvedBranchName = normalizeBranchName({
+    projectKey,
+    taskKey,
+    branchName,
+  });
+  const branchSlug = resolvedBranchName.replaceAll("/", "-");
+  const cwd = path.join(worktreeRoot, projectKey, branchSlug);
+
+  await fs.mkdir(path.dirname(cwd), { recursive: true });
+
+  if (!(await isReusableWorktree(cwd))) {
+    if (branchExists(projectCwd, resolvedBranchName)) {
+      git(["worktree", "add", "--detach", cwd, resolvedBranchName], projectCwd);
+    } else {
+      git(["worktree", "add", "-b", resolvedBranchName, cwd, "HEAD"], projectCwd);
+    }
+  }
+
+  await symlinkRuntimeEnvFiles(projectCwd, cwd);
+
+  return {
+    cwd,
+    branchName: resolvedBranchName,
+  };
+}

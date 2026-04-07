@@ -1,0 +1,30 @@
+export function renderPrompt({
+  taskKey,
+  projectKey,
+  branchName,
+  objective,
+  engine,
+  cwd,
+  projectCwd,
+}) {
+  return [
+    `Task ID: ${taskKey ?? "N/A"}`,
+    `Project Key: ${projectKey ?? "N/A"}`,
+    `Branch Name: ${branchName ?? "N/A"}`,
+    `Lifecycle Skill: preqstation`,
+    `User Objective: ${objective}`,
+    "",
+    "Execution Requirements:",
+    `1) Work only inside ${cwd}.`,
+    `2) Use branch ${branchName ?? "N/A"} for commits and pushes when needed.`,
+    `3) If Task ID is present, call preq_get_task("${taskKey}") first.`,
+    `4) Immediately after fetching the task, call preq_start_task("${taskKey}", "${engine}") before substantive work.`,
+    "5) Use the PREQSTATION lifecycle skill as the source of truth for status transitions.",
+    "6) If ./.preqstation-prompt.txt is missing, stop instead of improvising.",
+    `7) When finished, clean up the worktree with: git -C ${projectCwd} worktree remove ${cwd} --force && git -C ${projectCwd} worktree prune`,
+    '8) When completely finished: openclaw system event --text "Done: <brief summary>" --mode now',
+    "",
+    "Task handling bootstrap:",
+    'Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop.',
+  ].join("\n");
+}

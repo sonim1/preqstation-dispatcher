@@ -1,6 +1,8 @@
 # MEMORY
 
-Sample project workspace mapping format for `preqstation-dispatch`. This file is an example schema only. The user's real project mappings should live in OpenClaw agent memory.
+Default project mapping file for the local `preqstation-openclaw` plugin.
+
+Right now the plugin reads this file by default unless `plugins.entries.preqstation-openclaw.config.memoryPath` points somewhere else.
 
 ## Projects
 
