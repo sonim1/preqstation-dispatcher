@@ -25,9 +25,18 @@ The native plugin in this repo intercepts PREQ dispatch messages through `before
 
 Setup command:
 
+- `/preqsetup auto`
+- `PROJ https://github.com/sonim1/projects-manager`
+- `/preqsetup import`
 - `/preqsetup set <PROJECT_KEY> <ABSOLUTE_PATH>`
 - `/preqsetup set PROJ /Users/kendrick/projects/projects-manager`
 - `/preqsetup status`
+
+Recommended setup flow:
+
+- Use `/preqsetup auto` with `PROJECT_KEY REPO_URL` lines when OpenClaw should manage project-path mappings itself.
+- `auto` scans `PREQSTATION_REPO_ROOTS` when set, otherwise `~/projects`, and matches local git `origin` URLs against the provided repo URLs.
+- Use `/preqsetup import` only as a compatibility shortcut when Claude-side `/preqstation:setup` already populated `~/.preqstation-dispatch/projects.json`.
 
 ## Hard rules
 
@@ -43,7 +52,8 @@ The current plugin implementation resolves `project_cwd` in this order:
 
 1. explicit absolute path mentioned in the message
 2. plugin config mapping saved by `/preqsetup`
-3. project mapping from [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md) or configured `memoryPath`
+3. shared `~/.preqstation-dispatch/projects.json`
+4. project mapping from [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md) or configured `memoryPath`
 
 This is intentionally narrower than the old skill docs. Agent-memory lookup can come later, but the current public contract should describe what the plugin actually does today.
 

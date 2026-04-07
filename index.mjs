@@ -4,7 +4,10 @@ import path from "node:path";
 
 import { launchDetached } from "./src/detached-launch.mjs";
 import { parseDispatchMessage } from "./src/parse-dispatch-message.mjs";
-import { resolveProjectCwdWithSources } from "./src/project-mapping.mjs";
+import {
+  DEFAULT_SHARED_MAPPING_PATH,
+  resolveProjectCwdWithSources,
+} from "./src/project-mapping.mjs";
 import { renderPrompt } from "./src/prompt-template.mjs";
 import { createSetupCommandHandler } from "./src/setup-command.mjs";
 import { prepareWorktree } from "./src/worktree-runtime.mjs";
@@ -122,6 +125,7 @@ export function createBeforeDispatchHandler(api, overrides = {}) {
         rawMessage: parsed.rawMessage,
         projectKey: parsed.projectKey,
         configuredProjects: api.pluginConfig?.projects,
+        sharedMappingPath: DEFAULT_SHARED_MAPPING_PATH,
         memoryPath: resolveMemoryPath(api),
       });
 

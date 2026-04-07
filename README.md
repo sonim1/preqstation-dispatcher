@@ -21,7 +21,7 @@ The plugin intercepts PREQ dispatch messages with the OpenClaw `before_dispatch`
 Current flow:
 
 1. parse a PREQ dispatch message such as `!/skill preqstation-dispatch plan PROJ-327 using codex`
-2. resolve `project_cwd` from an explicit absolute path in the message or from [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md)
+2. resolve `project_cwd` from an explicit absolute path, a saved plugin mapping, the shared `~/.preqstation-dispatch/projects.json` store, or [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md)
 3. create or reuse an auxiliary git worktree under `~/.openclaw-preq-worktrees`
 4. write `.preqstation-prompt.txt` into that worktree
 5. create a managed Task Flow record and park it in waiting with detached process metadata
@@ -38,7 +38,7 @@ Telegram chat runs were creating the worktree and prompt correctly, then dying w
 Local plugin install for active development:
 
 ```bash
-openclaw plugins install --link /Users/kendrick/projects/preqstation-openclaw
+openclaw plugins install --link --dangerously-force-unsafe-install /Users/kendrick/projects/preqstation-openclaw
 openclaw gateway restart
 ```
 
@@ -86,16 +86,21 @@ If `memoryPath` is omitted, the plugin reads repo-local [MEMORY.md](/Users/kendr
 
 ## Setup
 
-After install, set project mappings once with the plugin command:
+After install, prefer the OpenClaw-native bulk setup command:
 
 ```text
-/preqsetup set <PROJECT_KEY> <ABSOLUTE_PATH>
+/preqsetup auto
+PROJ https://github.com/sonim1/projects-manager
+AGAL https://github.com/sonim1/agalog
 ```
 
 Useful setup commands:
 
 ```text
 /preqsetup
+/preqsetup auto
+/preqsetup import
+/preqsetup set <PROJECT_KEY> <ABSOLUTE_PATH>
 /preqsetup status
 /preqsetup unset PROJ
 ```
@@ -103,10 +108,18 @@ Useful setup commands:
 Example:
 
 ```text
-/preqsetup set PROJ /Users/kendrick/projects/projects-manager
+/preqsetup auto
+PROJ https://github.com/sonim1/projects-manager
+AGAL https://github.com/sonim1/agalog
 ```
 
-`/preqsetup` validates that the path exists and is a git checkout, then writes the mapping into the OpenClaw config under `plugins.entries.preqstation-openclaw.config.projects`.
+`/preqsetup auto` scans local git repos under `PREQSTATION_REPO_ROOTS` when set, otherwise under `~/projects`, matches each repo's `origin` remote against the provided repo URL, and stores successful matches in `plugins.entries.preqstation-openclaw.config.projects`.
+
+If you already ran Claude-side `/preqstation:setup`, OpenClaw can still reuse the shared mapping file at `~/.preqstation-dispatch/projects.json`.
+
+- `/preqsetup auto` is the recommended path when OpenClaw should own project-path management itself
+- `/preqsetup import` validates every shared mapping it finds there and copies the valid ones into `plugins.entries.preqstation-openclaw.config.projects`
+- `/preqsetup set ...` still lets you override or add one mapping manually
 
 ## Command shape
 
@@ -129,7 +142,8 @@ Project path resolution priority:
 
 1. explicit absolute path in the dispatch message
 2. `/preqsetup`-saved mapping in plugin config
-3. fallback [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md)
+3. shared `~/.preqstation-dispatch/projects.json`
+4. fallback [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md)
 
 ## Detached runtime
 
@@ -151,7 +165,7 @@ Claude Code and Gemini CLI use the same bootstrap idea with their own binaries.
 ## Current limitations
 
 - Completion emergence back into the original chat thread is not wired yet.
-- The plugin currently resolves project mappings from [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md) or an explicit absolute path, not from OpenClaw agent memory.
+- The plugin currently resolves project mappings from explicit paths, plugin config, the shared `~/.preqstation-dispatch/projects.json`, or [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md), not from OpenClaw agent memory.
 - Detached process logs are written to the worktree and are not streamed live into Telegram.
 
 Those are deliberate tradeoffs for the first pass: stable dispatch first, richer emergence later.

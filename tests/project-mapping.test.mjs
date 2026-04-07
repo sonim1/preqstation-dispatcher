@@ -5,8 +5,10 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  loadDispatchProjectMappings,
   loadProjectMappings,
   resolveProjectCwd,
+  resolveProjectCwdWithSources,
 } from "../src/project-mapping.mjs";
 
 test("loads project mappings from MEMORY markdown table", async () => {
@@ -43,4 +45,74 @@ test("resolves explicit absolute path before mapping lookup", async () => {
   });
 
   assert.equal(cwd, "/tmp/direct-project");
+});
+
+test("loads shared PREQ dispatch mappings from projects.json", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-openclaw-projects-json-"),
+  );
+  const mappingPath = path.join(tempDir, "projects.json");
+
+  await fs.writeFile(
+    mappingPath,
+    JSON.stringify(
+      {
+        projects: {
+          PROJ: "/Users/example/projects/projects-manager",
+          docs: "relative/path",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  const mappings = await loadDispatchProjectMappings(mappingPath);
+
+  assert.deepEqual(mappings, {
+    PROJ: "/Users/example/projects/projects-manager",
+  });
+});
+
+test("shared PREQ dispatch mappings are used before MEMORY fallback", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-openclaw-shared-resolve-"),
+  );
+  const sharedMappingPath = path.join(tempDir, "projects.json");
+  const memoryPath = path.join(tempDir, "MEMORY.md");
+
+  await fs.writeFile(
+    sharedMappingPath,
+    JSON.stringify(
+      {
+        projects: {
+          PROJ: "/Users/example/projects/projects-manager",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  await fs.writeFile(
+    memoryPath,
+    [
+      "# MEMORY",
+      "",
+      "| key  | cwd                    | note |",
+      "| ---- | ---------------------- | ---- |",
+      "| PROJ | /tmp/fallback-project | App  |",
+      "",
+    ].join("\n"),
+  );
+
+  const cwd = await resolveProjectCwdWithSources({
+    rawMessage: "preqstation plan PROJ-12 using codex",
+    projectKey: "PROJ",
+    configuredProjects: {},
+    sharedMappingPath,
+    memoryPath,
+  });
+
+  assert.equal(cwd, "/Users/example/projects/projects-manager");
 });
