@@ -1,8 +1,13 @@
 # preqstation-openclaw
 
-OpenClaw skill package for running `claude`, `codex`, or `gemini` CLI with a fixed execution template while using PREQ engine keys like `claude-code`, `codex`, and `gemini-cli`.
+OpenClaw production dispatcher surface for PREQSTATION task execution.
 
-This repository is skill-only. It does not ship HTTP servers, webhook handlers, or messenger integration code.
+This repository is intentionally OpenClaw-specific again. It should stay small and contain only:
+
+- the OpenClaw-facing `preqstation-dispatch` skill
+- the sample `MEMORY.md` schema for project path mappings
+
+The Claude plugin, PREQ `/mcp` OAuth client helpers, and the experimental local Claude dispatch channel runtime now live in `preqstation-skill`.
 
 ## How to use
 
@@ -140,15 +145,18 @@ When using `background:true`, use process actions:
 - `process action:submit sessionId:<id> data:"..."`
 - `process action:kill sessionId:<id>` (only when required)
 
-## ClawHub import
+## Updates
 
-Use GitHub import with this repository URL:
+For the OpenClaw production dispatcher surface, update this repository in place:
 
-`https://github.com/sonim1/preqstation-openclaw`
+```bash
+git pull origin main
+```
 
-ClawHub should detect `SKILL.md` from repository root.
+If you need the Claude plugin, PREQ `/mcp` OAuth client, or experimental Claude dispatch runtime, update `preqstation-skill` instead.
 
 ## Responsibility boundary
 
 - OpenClaw: messenger routing, permissions, webhook/channel integration
-- This repo: CLI execution instructions and prompt template only
+- This repo: OpenClaw dispatcher skill and prompt template
+- `preqstation-skill`: Claude plugin, PREQ MCP/OAuth helpers, and experimental Claude dispatch channel runtime

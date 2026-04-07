@@ -42,7 +42,7 @@ Parse from user message:
 
 ## Project Path Resolution
 
-- `MEMORY.md` is an example schema only — actual mappings live in agent memory.
+- `MEMORY.md` is an example schema only — actual mappings live in OpenClaw agent memory.
 - Infer project key from task prefix (e.g. `PROS-102` → `pros`, case-insensitive exact match)
 - If mapping is missing, ask the user for the absolute path, then save to agent memory
 - Format: `| <key> | <absolute-path-or-TBD> | <note> |` (lowercase kebab-case, one row per key)
