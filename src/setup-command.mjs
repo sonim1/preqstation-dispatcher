@@ -99,16 +99,29 @@ function parseAutoMappings(payload) {
       continue;
     }
 
-    const match = trimmed.match(/^([A-Za-z0-9_-]+)\s+(\S+)$/u);
-    if (!match) {
-      invalid.push(trimmed);
+    const inlineMatches = Array.from(
+      trimmed.matchAll(/([A-Za-z0-9_-]+)=(\S+)/gu),
+    );
+    if (inlineMatches.length > 0) {
+      for (const match of inlineMatches) {
+        entries.push({
+          projectKey: match[1].toUpperCase(),
+          repoUrl: match[2],
+        });
+      }
       continue;
     }
 
-    entries.push({
-      projectKey: match[1].toUpperCase(),
-      repoUrl: match[2],
-    });
+    const spacedMatch = trimmed.match(/^([A-Za-z0-9_-]+)\s+(\S+)$/u);
+    if (spacedMatch) {
+      entries.push({
+        projectKey: spacedMatch[1].toUpperCase(),
+        repoUrl: spacedMatch[2],
+      });
+      continue;
+    }
+
+    invalid.push(trimmed);
   }
 
   return { entries, invalid };

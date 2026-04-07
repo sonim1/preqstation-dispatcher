@@ -41,6 +41,62 @@ test("parses setup auto arguments", () => {
   );
 });
 
+test("setup command auto-maps projects from single-line key=url payload", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-openclaw-auto-inline-"),
+  );
+  const repoRoot = path.join(tempDir, "projects");
+  const matchedRepo = path.join(repoRoot, "projects-manager");
+  let writtenConfig = null;
+
+  await fs.mkdir(matchedRepo, { recursive: true });
+  execFileSync("git", ["init"], { cwd: matchedRepo, stdio: "ignore" });
+  execFileSync(
+    "git",
+    ["remote", "add", "origin", "git@github.com:sonim1/projects-manager.git"],
+    { cwd: matchedRepo, stdio: "ignore" },
+  );
+
+  const api = {
+    runtime: {
+      config: {
+        loadConfig() {
+          return {
+            plugins: {
+              entries: {
+                "preqstation-openclaw": {
+                  enabled: true,
+                  config: {},
+                },
+              },
+            },
+          };
+        },
+        async writeConfigFile(nextConfig) {
+          writtenConfig = nextConfig;
+        },
+      },
+    },
+  };
+
+  const handler = createSetupCommandHandler(api, { repoRoots: [repoRoot] });
+  const result = await handler({
+    channel: "telegram",
+    isAuthorizedSender: true,
+    commandBody:
+      "/preqsetup auto PROJ=https://github.com/sonim1/projects-manager MISS=https://github.com/sonim1/missing-repo",
+    args: "auto PROJ=https://github.com/sonim1/projects-manager MISS=https://github.com/sonim1/missing-repo",
+    config: {},
+  });
+
+  assert.match(result.text, /Matched 1 PREQ project mapping/);
+  assert.match(result.text, /MISS -> https:\/\/github.com\/sonim1\/missing-repo/);
+  assert.equal(
+    writtenConfig.plugins.entries["preqstation-openclaw"].config.projects.PROJ,
+    matchedRepo,
+  );
+});
+
 test("setup command writes project mapping into plugin config", async () => {
   let writtenConfig = null;
   const api = {
