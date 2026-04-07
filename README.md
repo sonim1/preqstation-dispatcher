@@ -2,6 +2,8 @@
 
 OpenClaw production dispatcher surface for PREQSTATION task execution.
 
+Current surface version: `0.1.1` (see [`VERSION`](/Users/kendrick/projects/preqstation-openclaw/VERSION)).
+
 This repository is intentionally OpenClaw-specific again. It should stay small and contain only:
 
 - the OpenClaw-facing `preqstation-dispatch` skill
