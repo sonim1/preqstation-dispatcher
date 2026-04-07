@@ -15,6 +15,8 @@ test("builds a detached codex launch plan that reads the prompt file", () => {
   assert.deepEqual(plan.pidFile, "/tmp/worktree/proj/task-proj-327-browser-notification-chuga/.preqstation-dispatch/codex.pid");
   assert.match(plan.script, /codex exec --dangerously-bypass-approvals-and-sandbox/);
   assert.match(plan.script, /Read and execute instructions from \.\/\.preqstation-prompt\.txt/);
+  assert.doesNotMatch(plan.script, /& &&/);
+  assert.match(plan.script, /\( nohup .*echo \$! >/);
 });
 
 test("before_dispatch handles matched preq messages and parks task flow in waiting", async () => {

@@ -28,8 +28,7 @@ export function buildDetachedLaunchPlan({ cwd, engine }) {
   const engineCommand = buildEngineCommand(engine);
   const script = [
     `mkdir -p ${shellQuote(".preqstation-dispatch")}`,
-    `nohup ${engineCommand} > ${shellQuote(path.relative(cwd, logFile))} 2>&1 < /dev/null &`,
-    `echo $! > ${shellQuote(path.relative(cwd, pidFile))}`,
+    `( nohup ${engineCommand} > ${shellQuote(path.relative(cwd, logFile))} 2>&1 < /dev/null & echo $! > ${shellQuote(path.relative(cwd, pidFile))} )`,
   ].join(" && ");
 
   return {
