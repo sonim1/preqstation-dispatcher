@@ -40,3 +40,24 @@ test("renders ask-specific note rewrite guidance", () => {
   assert.match(prompt, /preq_update_task_status/);
   assert.match(prompt, /keep the workflow status unchanged/);
 });
+
+test("renders insight-specific task generation guidance", () => {
+  const prompt = renderPrompt({
+    taskKey: null,
+    projectKey: "PROJ",
+    branchName: "preqstation/proj",
+    objective: "insight",
+    engine: "codex",
+    cwd: "/tmp/worktree/proj/preqstation-proj",
+    projectCwd: "/tmp/project",
+    insightPromptB64:
+      "Q29ubmVjdGlvbnMg7Y6Y7J207KeAIOqwnO2OuCDsnpHsl4XsnYQg64KY64ig7KSYCuuqqOuwlOydvCDtnZDrpoTrj4Qg6rCZ7J20IOu0kOykmA==",
+  });
+
+  assert.match(prompt, /Task ID: N\/A/);
+  assert.match(prompt, /User Objective: insight/);
+  assert.match(prompt, /Insight Prompt: Connections 페이지 개편 작업을 나눠줘/);
+  assert.match(prompt, /Task ID may be absent for project-level objectives/);
+  assert.match(prompt, /preq_list_tasks\(projectKey=\.\.\., detail=full\)/);
+  assert.match(prompt, /preq_create_task/);
+});

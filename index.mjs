@@ -57,7 +57,7 @@ function trackDetachedDispatch({ api, event, ctx, parsed, prepared, launch }) {
 
   const created = bound.createManaged({
     controllerId: "preqstation-openclaw/dispatch",
-    goal: `Dispatch ${parsed.taskKey} via ${parsed.engine}`,
+    goal: `Dispatch ${parsed.taskKey ?? parsed.projectKey} via ${parsed.engine}`,
     status: "running",
     currentStep: "launch_detached_engine",
     stateJson: {
@@ -72,8 +72,8 @@ function trackDetachedDispatch({ api, event, ctx, parsed, prepared, launch }) {
   const child = bound.runTask({
     flowId: created.flowId,
     runtime: "cli",
-    runId: `preqstation-openclaw:${parsed.taskKey}:${Date.now()}`,
-    task: `Dispatch ${parsed.taskKey} via ${parsed.engine}`,
+    runId: `preqstation-openclaw:${parsed.taskKey ?? parsed.projectKey}:${Date.now()}`,
+    task: `Dispatch ${parsed.taskKey ?? parsed.projectKey} via ${parsed.engine}`,
     status: "running",
     startedAt: Date.now(),
     lastEventAt: Date.now(),
@@ -146,6 +146,7 @@ export function createBeforeDispatchHandler(api, overrides = {}) {
         cwd: prepared.cwd,
         projectCwd,
         askHint: parsed.askHint,
+        insightPromptB64: parsed.insightPromptB64,
       });
 
       await dependencies.writePromptFile({ cwd: prepared.cwd, prompt });
@@ -165,7 +166,7 @@ export function createBeforeDispatchHandler(api, overrides = {}) {
 
       return {
         handled: true,
-        text: `dispatched ${parsed.taskKey} via ${parsed.engine} at ${prepared.cwd}`,
+        text: `dispatched ${parsed.taskKey ?? parsed.projectKey} via ${parsed.engine} at ${prepared.cwd}`,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -175,7 +176,7 @@ export function createBeforeDispatchHandler(api, overrides = {}) {
       });
       return {
         handled: true,
-        text: `failed to dispatch ${parsed.taskKey} via ${parsed.engine} - ${message}`,
+        text: `failed to dispatch ${parsed.taskKey ?? parsed.projectKey} via ${parsed.engine} - ${message}`,
       };
     }
   };
