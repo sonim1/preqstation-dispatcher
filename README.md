@@ -89,9 +89,7 @@ If `memoryPath` is omitted, the plugin reads repo-local [MEMORY.md](/Users/kendr
 After install, prefer the OpenClaw-native bulk setup command:
 
 ```text
-/preqsetup auto
-PROJ https://github.com/sonim1/projects-manager
-AGAL https://github.com/sonim1/agalog
+/preqsetup auto PROJ=https://github.com/sonim1/projects-manager AGAL=https://github.com/sonim1/agalog
 ```
 
 Useful setup commands:
@@ -108,9 +106,7 @@ Useful setup commands:
 Example:
 
 ```text
-/preqsetup auto
-PROJ https://github.com/sonim1/projects-manager
-AGAL https://github.com/sonim1/agalog
+/preqsetup auto PROJ=https://github.com/sonim1/projects-manager AGAL=https://github.com/sonim1/agalog
 ```
 
 `/preqsetup auto` scans local git repos under `PREQSTATION_REPO_ROOTS` when set, otherwise under `~/projects`, matches each repo's `origin` remote against the provided repo URL, and stores successful matches in `plugins.entries.preqstation-openclaw.config.projects`.
@@ -126,6 +122,7 @@ If you already ran Claude-side `/preqstation:setup`, OpenClaw can still reuse th
 Supported trigger styles:
 
 - `/skill preqstation-dispatch plan PROJ-327 using codex`
+- `/skill preqstation-dispatch ask PROJ-328 using codex ask_hint="Acceptance criteria 중심으로 정리해줘"`
 - `!/skill preqstation-dispatch implement PROJ-327 using claude branch_name="task/proj-327/browser-notification-chuga"`
 - `preqstation implement PROJ-327 with codex`
 - `preqstation implement PROJ-327 in /absolute/path/to/repo with codex`
@@ -137,6 +134,7 @@ Parsed fields:
 - project key
 - objective
 - optional `branch_name=...`
+- optional `ask_hint=...`
 
 Project path resolution priority:
 

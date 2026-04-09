@@ -23,6 +23,16 @@ function parseBranchName(message) {
   return bareMatch ? bareMatch[1].trim() : null;
 }
 
+function parseAskHint(message) {
+  const quotedMatch = message.match(/\bask_hint=(["'])(.*?)\1/i);
+  if (quotedMatch) {
+    return quotedMatch[2].trim() || null;
+  }
+
+  const bareMatch = message.match(/\bask_hint=([^\s]+)/i);
+  return bareMatch ? bareMatch[1].trim() : null;
+}
+
 function parseObjective(message) {
   const normalized = message
     .replace(/^!\s*/u, "")
@@ -54,6 +64,7 @@ export function parseDispatchMessage(message) {
     projectKey,
     objective: parseObjective(message),
     branchName: parseBranchName(message),
+    askHint: parseAskHint(message),
     rawMessage: message,
   };
 }

@@ -145,6 +145,7 @@ export function createBeforeDispatchHandler(api, overrides = {}) {
         engine: parsed.engine,
         cwd: prepared.cwd,
         projectCwd,
+        askHint: parsed.askHint,
       });
 
       await dependencies.writePromptFile({ cwd: prepared.cwd, prompt });

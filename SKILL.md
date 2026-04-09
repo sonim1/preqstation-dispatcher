@@ -20,6 +20,7 @@ The native plugin in this repo intercepts PREQ dispatch messages through `before
 ## Trigger examples
 
 - `/skill preqstation-dispatch plan PROJ-327 using codex`
+- `/skill preqstation-dispatch ask PROJ-328 using codex ask_hint="Acceptance criteria 중심으로 정리해줘"`
 - `!/skill preqstation-dispatch implement PROJ-327 using claude`
 - `preqstation implement PROJ-327 with codex`
 
@@ -63,7 +64,7 @@ The dispatched CLI reads `./.preqstation-prompt.txt` in the worktree and should:
 
 1. call `preq_get_task("<task>")` first when a task key exists
 2. call `preq_start_task("<task>", "<engine>")` before substantive work
-3. follow the PREQSTATION lifecycle skill for status and completion rules
+3. if the objective is `ask`, rewrite the task note only, use `preq_update_task_note`, and clear `run_state` with `preq_update_task_status` while keeping workflow status unchanged
 4. work only inside the resolved worktree
 5. notify OpenClaw on completion with `openclaw system event --text "Done: <brief summary>" --mode now`
 
