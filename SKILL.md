@@ -30,7 +30,7 @@ Setup command:
 - `PROJ https://github.com/sonim1/projects-manager`
 - `/preqsetup import`
 - `/preqsetup set <PROJECT_KEY> <ABSOLUTE_PATH>`
-- `/preqsetup set PROJ /Users/kendrick/projects/projects-manager`
+- `/preqsetup set PROJ /Users/example/projects/projects-manager`
 - `/preqsetup status`
 
 Recommended setup flow:

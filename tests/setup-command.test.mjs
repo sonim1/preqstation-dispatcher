@@ -12,11 +12,11 @@ import {
 
 test("parses setup command arguments", () => {
   assert.deepEqual(
-    parseSetupArgs('set PROJ /Users/kendrick/projects/projects-manager'),
+    parseSetupArgs("set PROJ /Users/example/projects/projects-manager"),
     {
       action: "set",
       projectKey: "PROJ",
-      projectCwd: "/Users/kendrick/projects/projects-manager",
+      projectCwd: "/Users/example/projects/projects-manager",
     },
   );
 });
@@ -162,7 +162,7 @@ test("setup command shows current mappings when called without args", async () =
                   enabled: true,
                   config: {
                     projects: {
-                      PROJ: "/Users/kendrick/projects/projects-manager",
+                      PROJ: "/Users/example/projects/projects-manager",
                     },
                   },
                 },
@@ -184,7 +184,7 @@ test("setup command shows current mappings when called without args", async () =
   });
 
   assert.match(result.text, /Usage: \/preqsetup set <PROJECT_KEY> <ABSOLUTE_PATH>/);
-  assert.match(result.text, /PROJ -> \/Users\/kendrick\/projects\/projects-manager/);
+  assert.match(result.text, /PROJ -> \/Users\/example\/projects\/projects-manager/);
 });
 
 test("setup command rejects missing project paths before saving", async () => {
