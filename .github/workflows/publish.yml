@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: publish-npm-package
+  cancel-in-progress: false
+
 permissions:
   contents: write
   id-token: write

@@ -40,6 +40,9 @@ test("publish workflow releases the package on main pushes", async () => {
 
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /push:\s+branches:\s+- main/s);
+  assert.match(workflow, /concurrency:/);
+  assert.match(workflow, /group:\s+publish-npm-package/);
+  assert.match(workflow, /cancel-in-progress:\s+false/);
   assert.match(workflow, /id-token:\s+write/);
   assert.match(workflow, /github\.actor != 'github-actions\[bot\]'/);
   assert.match(workflow, /npm version patch --no-git-tag-version/);
