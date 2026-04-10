@@ -64,7 +64,7 @@ The dispatched CLI reads `./.preqstation-prompt.txt` in the worktree and should:
 
 1. call `preq_get_task("<task>")` first when a task key exists
 2. call `preq_start_task("<task>", "<engine>")` before substantive work
-3. if the objective is `ask`, rewrite the task note only, use `preq_update_task_note`, and clear `run_state` with `preq_update_task_status` while keeping workflow status unchanged
+3. if the objective is `ask`, update the task note, use `preq_update_task_note`, and clear `run_state` with `preq_update_task_status` while keeping workflow status unchanged; prototype-style asks may generate local artifacts and may publish them only through a safe private provider using a `private-or-skip` policy
 4. work only inside the resolved worktree
 5. notify OpenClaw on completion with `openclaw system event --text "Done: <brief summary>" --mode now`
 

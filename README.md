@@ -160,6 +160,8 @@ codex exec --dangerously-bypass-approvals-and-sandbox "Read and execute instruct
 
 Claude Code and Gemini CLI use the same bootstrap idea with their own binaries.
 
+Ask dispatch now follows the same contract as the worker skill: the run still updates the note, but prototype-style asks may generate local artifacts and may publish them only through a safe private provider using `private-or-skip`.
+
 ## Current limitations
 
 - Completion emergence back into the original chat thread is not wired yet.

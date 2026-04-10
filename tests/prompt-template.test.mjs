@@ -39,6 +39,9 @@ test("renders ask-specific note rewrite guidance", () => {
   assert.match(prompt, /preq_update_task_note/);
   assert.match(prompt, /preq_update_task_status/);
   assert.match(prompt, /keep the workflow status unchanged/);
+  assert.match(prompt, /prototype-style asks may generate local artifacts/i);
+  assert.match(prompt, /safe private provider/i);
+  assert.match(prompt, /private-or-skip/i);
 });
 
 test("renders insight-specific task generation guidance", () => {
