@@ -47,6 +47,36 @@ test("resolves explicit absolute path before mapping lookup", async () => {
   assert.equal(cwd, "/tmp/direct-project");
 });
 
+test("does not treat slash commands in ask text as explicit project paths", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-openclaw-ask-slash-command-"),
+  );
+  const sharedMappingPath = path.join(tempDir, "projects.json");
+
+  await fs.writeFile(
+    sharedMappingPath,
+    JSON.stringify(
+      {
+        projects: {
+          PROJ: "/Users/example/projects/projects-manager",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  const cwd = await resolveProjectCwdWithSources({
+    rawMessage: "Ask: run /audit for connections page",
+    projectKey: "PROJ",
+    configuredProjects: {},
+    sharedMappingPath,
+    memoryPath: "/does/not/matter",
+  });
+
+  assert.equal(cwd, "/Users/example/projects/projects-manager");
+});
+
 test("loads shared PREQ dispatch mappings from projects.json", async () => {
   const tempDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "preqstation-openclaw-projects-json-"),

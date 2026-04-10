@@ -5,7 +5,11 @@ import { execFileSync } from "node:child_process";
 
 const TABLE_ROW_PATTERN =
   /^\|\s*([A-Za-z0-9_-]+)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|$/u;
-const ABSOLUTE_PATH_PATTERN = /(^|\s)(\/[^\s"']+)/u;
+const EXPLICIT_PATH_PATTERNS = [
+  /\bin\s+(\/[^\s"']+)/u,
+  /\bcwd=(\/[^\s"']+)/u,
+  /\bpath=(\/[^\s"']+)/u,
+];
 export const DEFAULT_REPO_ROOTS = [path.join(os.homedir(), "projects")];
 export const DEFAULT_SHARED_MAPPING_PATH = path.join(
   os.homedir(),
@@ -15,6 +19,22 @@ export const DEFAULT_SHARED_MAPPING_PATH = path.join(
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function extractExplicitProjectPath(rawMessage) {
+  const message = normalizeString(rawMessage);
+  if (!message) {
+    return null;
+  }
+
+  for (const pattern of EXPLICIT_PATH_PATTERNS) {
+    const match = message.match(pattern);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
 }
 
 export function normalizeRepoUrl(repoUrl) {
@@ -191,7 +211,7 @@ export async function loadDispatchProjectMappings(
 }
 
 export async function resolveProjectCwd({ rawMessage, projectKey, memoryPath }) {
-  const explicitPath = rawMessage.match(ABSOLUTE_PATH_PATTERN)?.[2];
+  const explicitPath = extractExplicitProjectPath(rawMessage);
   if (explicitPath) {
     return explicitPath;
   }
@@ -212,7 +232,7 @@ export async function resolveProjectCwdWithSources({
   sharedMappingPath = DEFAULT_SHARED_MAPPING_PATH,
   memoryPath,
 }) {
-  const explicitPath = rawMessage.match(ABSOLUTE_PATH_PATTERN)?.[2];
+  const explicitPath = extractExplicitProjectPath(rawMessage);
   if (explicitPath) {
     return explicitPath;
   }
