@@ -1,6 +1,6 @@
 {
   "name": "@sonim1/preqstation-openclaw",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": false,
   "description": "OpenClaw plugin for PREQSTATION dispatch",
   "type": "module",
