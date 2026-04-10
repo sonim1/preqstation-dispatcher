@@ -38,9 +38,11 @@ Telegram chat runs were creating the worktree and prompt correctly, then dying w
 Default install from npm:
 
 ```bash
-openclaw plugins install @sonim1/preqstation-openclaw
+openclaw plugins install @sonim1/preqstation-openclaw --dangerously-force-unsafe-install
 openclaw gateway restart
 ```
+
+This plugin intentionally uses `child_process` to create git worktrees and launch detached coding CLIs, so current OpenClaw builds require `--dangerously-force-unsafe-install` even for the npm package.
 
 Local linked install for active development:
 

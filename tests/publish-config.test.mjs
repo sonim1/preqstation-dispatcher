@@ -31,7 +31,10 @@ test("package metadata is publishable to the public npm registry", async () => {
 test("README documents npm install as the default path and linked install for local development", async () => {
   const readme = await readRepoFile("README.md");
 
-  assert.match(readme, /openclaw plugins install @sonim1\/preqstation-openclaw/);
+  assert.match(
+    readme,
+    /openclaw plugins install @sonim1\/preqstation-openclaw --dangerously-force-unsafe-install/,
+  );
   assert.match(readme, /Local linked install for active development/i);
 });
 
