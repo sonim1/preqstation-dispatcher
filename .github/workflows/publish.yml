@@ -1,0 +1,78 @@
+name: Publish npm package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Run tests
+        run: npm test
+
+      - name: Read package metadata
+        run: |
+          node --eval '
+          const fs = require("node:fs");
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          console.log(`PACKAGE_NAME=${pkg.name}`);
+          console.log(`PACKAGE_VERSION=${pkg.version}`);
+          ' >> "$GITHUB_ENV"
+
+      - name: Check whether this version is already published
+        run: |
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "VERSION_EXISTS=true" >> "$GITHUB_ENV"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already on npm. Preparing an automatic patch bump."
+          else
+            echo "VERSION_EXISTS=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Auto bump patch version when npm already has the current version
+        if: env.VERSION_EXISTS == 'true'
+        run: |
+          npm version patch --no-git-tag-version
+          node --eval '
+          const fs = require("node:fs");
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          fs.writeFileSync("VERSION", `${pkg.version}\n`);
+          console.log(`PACKAGE_VERSION=${pkg.version}`);
+          ' >> "$GITHUB_ENV"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json VERSION
+          git commit -m "chore: bump package version to ${PACKAGE_VERSION}"
+          git push
+
+      - name: Ensure the publish target version is not already on npm
+        run: |
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm after auto-bump." >&2
+            exit 1
+          fi
+
+      - name: Validate publish contents
+        run: npm pack --dry-run
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public

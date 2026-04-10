@@ -1,11 +1,32 @@
 {
-  "name": "preqstation-openclaw",
-  "version": "0.1.7",
-  "private": true,
+  "name": "@sonim1/preqstation-openclaw",
+  "version": "0.1.8",
+  "private": false,
+  "description": "OpenClaw plugin for PREQSTATION dispatch",
   "type": "module",
+  "files": [
+    "index.mjs",
+    "src",
+    "openclaw.plugin.json",
+    "README.md",
+    "MEMORY.md",
+    "SKILL.md",
+    "VERSION"
+  ],
   "scripts": {
     "test": "node --test"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sonim1/preqstation-openclaw.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sonim1/preqstation-openclaw/issues"
+  },
+  "homepage": "https://github.com/sonim1/preqstation-openclaw#readme",
   "openclaw": {
     "extensions": [
       "./index.mjs"

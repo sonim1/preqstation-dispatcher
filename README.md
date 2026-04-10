@@ -2,7 +2,7 @@
 
 OpenClaw plugin for PREQSTATION dispatch.
 
-Current surface version: `0.1.2` (see [VERSION](/Users/kendrick/projects/preqstation-openclaw/VERSION)).
+Current surface version: `0.1.8` (see [VERSION](/Users/kendrick/projects/preqstation-openclaw/VERSION)).
 
 This repo now contains a real native OpenClaw plugin surface again:
 
@@ -35,7 +35,14 @@ Telegram chat runs were creating the worktree and prompt correctly, then dying w
 
 ## Install
 
-Local plugin install for active development:
+Default install from npm:
+
+```bash
+openclaw plugins install @sonim1/preqstation-openclaw
+openclaw gateway restart
+```
+
+Local linked install for active development:
 
 ```bash
 openclaw plugins install --link --dangerously-force-unsafe-install /Users/kendrick/projects/preqstation-openclaw
@@ -55,6 +62,23 @@ Useful checks:
 openclaw plugins inspect preqstation-openclaw
 openclaw status --all
 ```
+
+## Publishing
+
+Pushes to `main` run `.github/workflows/publish.yml`, test the package, and publish to npm automatically.
+
+Release behavior:
+
+- if the current `package.json` version is not on npm yet, the workflow publishes it as-is
+- if that version already exists on npm, the workflow automatically bumps a patch version, syncs [VERSION](/Users/kendrick/projects/preqstation-openclaw/VERSION), commits the bump back to `main`, and publishes the new version
+- the follow-up run triggered by that bump commit is skipped because the actor is `github-actions[bot]`
+
+One-time setup before the first release:
+
+- add an `NPM_TOKEN` repository secret, or
+- configure npm trusted publishing for `sonim1/preqstation-openclaw`
+
+The workflow is ready for both: it grants `id-token: write` for trusted publishing and also passes `NODE_AUTH_TOKEN` when `NPM_TOKEN` is configured.
 
 ## Configuration
 
