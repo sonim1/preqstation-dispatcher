@@ -98,7 +98,14 @@ test("setup command auto-maps projects from single-line key=url payload", async 
 });
 
 test("setup command writes project mapping into plugin config", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-openclaw-set-"),
+  );
+  const repoDir = path.join(tempDir, "projects-manager");
   let writtenConfig = null;
+
+  await fs.mkdir(path.join(repoDir, ".git"), { recursive: true });
+
   const api = {
     runtime: {
       config: {
@@ -127,15 +134,15 @@ test("setup command writes project mapping into plugin config", async () => {
   const result = await handler({
     channel: "telegram",
     isAuthorizedSender: true,
-    commandBody: "preqsetup set PROJ /Users/kendrick/projects/projects-manager",
-    args: "set PROJ /Users/kendrick/projects/projects-manager",
+    commandBody: `preqsetup set PROJ ${repoDir}`,
+    args: `set PROJ ${repoDir}`,
     config: {},
   });
 
   assert.match(result.text, /Saved PREQ project mapping/);
   assert.equal(
     writtenConfig.plugins.entries["preqstation-openclaw"].config.projects.PROJ,
-    "/Users/kendrick/projects/projects-manager",
+    repoDir,
   );
   assert.equal(
     writtenConfig.plugins.entries["preqstation-openclaw"].config.worktreeRoot,
