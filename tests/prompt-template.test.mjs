@@ -40,8 +40,15 @@ test("renders ask-specific note rewrite guidance", () => {
   assert.match(prompt, /preq_update_task_status/);
   assert.match(prompt, /keep the workflow status unchanged/);
   assert.match(prompt, /prototype-style asks may generate local artifacts/i);
-  assert.match(prompt, /safe private provider/i);
+  assert.match(prompt, /authenticated artifact provider/i);
   assert.match(prompt, /private-or-skip/i);
+  assert.match(prompt, /HTML prototype|HTML mockup/i);
+  assert.match(prompt, /screenshot/i);
+  assert.match(prompt, /Artifacts:/i);
+  assert.match(prompt, /7-day expiring reviewer links/i);
+  assert.match(prompt, /access=quickshare/i);
+  assert.match(prompt, /expires=\.\.\./i);
+  assert.match(prompt, /non-expiring anyone-with-the-link URLs/i);
 });
 
 test("renders insight-specific task generation guidance", () => {

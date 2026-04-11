@@ -2,7 +2,7 @@
 
 OpenClaw plugin for PREQSTATION dispatch.
 
-Current surface version: `0.1.8` (see [VERSION](/Users/kendrick/projects/preqstation-openclaw/VERSION)).
+Current surface version: `0.1.11` (see [VERSION](/Users/kendrick/projects/preqstation-openclaw/VERSION)).
 
 This repo now contains a real native OpenClaw plugin surface again:
 
@@ -186,7 +186,7 @@ codex exec --dangerously-bypass-approvals-and-sandbox "Read and execute instruct
 
 Claude Code and Gemini CLI use the same bootstrap idea with their own binaries.
 
-Ask dispatch now follows the same contract as the worker skill: the run still updates the note, but prototype-style asks may generate local artifacts and may publish them only through a safe private provider using `private-or-skip`.
+Ask dispatch now follows the same contract as the worker skill: the run still updates the note, but prototype-style asks may generate local artifacts, publish through an authenticated artifact provider when available, generate screenshot PNGs for HTML prototypes or mockups, and record `Artifacts:` links. If the provider supports temporary external share or quickshare links, the dispatched agent should create 7-day expiring reviewer links and include `access=quickshare` plus `expires=...`.
 
 ## Current limitations
 
