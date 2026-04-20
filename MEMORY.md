@@ -1,13 +1,13 @@
 # MEMORY
 
-Default project mapping file for the local `preqstation-openclaw` plugin.
+Default project mapping file for the local `preqstation-dispatcher` plugin.
 
-Right now the plugin reads this file by default unless `plugins.entries.preqstation-openclaw.config.memoryPath` points somewhere else.
+Right now the plugin reads this file by default unless `plugins.entries.preqstation-dispatcher.config.memoryPath` points somewhere else.
 
 ## Projects
 
 | key  | cwd                                       | note            |
 | ---- | ----------------------------------------- | --------------- |
-| PROJ | /tmp/preqstation-openclaw/example-project | Example Project |
+| PROJ | /tmp/preqstation-dispatcher/example-project | Example Project |
 | DOCS | TBD                                       | Example Docs    |
-| API  | /tmp/preqstation-openclaw/test-api        | Test API        |
+| API  | /tmp/preqstation-dispatcher/test-api        | Test API        |

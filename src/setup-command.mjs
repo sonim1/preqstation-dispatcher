@@ -8,7 +8,7 @@ import {
 } from "./project-mapping.mjs";
 
 function readPluginConfig(config) {
-  return config?.plugins?.entries?.["preqstation-openclaw"]?.config ?? {};
+  return config?.plugins?.entries?.["preqstation-dispatcher"]?.config ?? {};
 }
 
 function formatMappings(projects) {
@@ -134,8 +134,8 @@ function updatePluginProjects(config, nextProjects) {
       ...(config.plugins ?? {}),
       entries: {
         ...(config.plugins?.entries ?? {}),
-        "preqstation-openclaw": {
-          ...(config.plugins?.entries?.["preqstation-openclaw"] ?? {}),
+        "preqstation-dispatcher": {
+          ...(config.plugins?.entries?.["preqstation-dispatcher"] ?? {}),
           enabled: true,
           config: {
             ...readPluginConfig(config),

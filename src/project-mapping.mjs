@@ -216,6 +216,10 @@ export async function resolveProjectCwd({ rawMessage, projectKey, memoryPath }) 
     return explicitPath;
   }
 
+  if (!memoryPath) {
+    throw new Error(`No project path mapping found for ${projectKey}`);
+  }
+
   const mappings = await loadProjectMappings(memoryPath);
   const mapped = mappings[projectKey.toUpperCase()];
   if (!mapped) {

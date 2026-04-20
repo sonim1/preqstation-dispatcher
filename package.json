@@ -1,10 +1,15 @@
 {
-  "name": "@sonim1/preqstation-openclaw",
-  "version": "0.1.12",
+  "name": "@sonim1/preqstation-dispatcher",
+  "version": "0.1.13",
   "private": false,
-  "description": "OpenClaw plugin for PREQSTATION dispatch",
+  "description": "PREQSTATION dispatcher with OpenClaw and Telegram-host support",
   "type": "module",
+  "bin": {
+    "preqstation-dispatcher": "./bin/preqstation-dispatcher.mjs"
+  },
   "files": [
+    "bin",
+    "docs",
     "index.mjs",
     "src",
     "openclaw.plugin.json",
@@ -21,12 +26,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sonim1/preqstation-openclaw.git"
+    "url": "git+https://github.com/sonim1/preqstation-dispatcher.git"
   },
   "bugs": {
-    "url": "https://github.com/sonim1/preqstation-openclaw/issues"
+    "url": "https://github.com/sonim1/preqstation-dispatcher/issues"
   },
-  "homepage": "https://github.com/sonim1/preqstation-openclaw#readme",
+  "homepage": "https://github.com/sonim1/preqstation-dispatcher#readme",
   "openclaw": {
     "extensions": [
       "./index.mjs"

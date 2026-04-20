@@ -1,5 +1,5 @@
 {
-  "id": "preqstation-openclaw",
+  "id": "preqstation-dispatcher",
   "name": "PREQSTATION OpenClaw Dispatch",
   "description": "Intercept PREQSTATION dispatch messages and launch detached local coding runs for mapped projects.",
   "configSchema": {

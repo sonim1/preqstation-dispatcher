@@ -14,10 +14,15 @@ async function readRepoFile(name) {
 test("package metadata is publishable to the public npm registry", async () => {
   const pkg = JSON.parse(await readRepoFile("package.json"));
 
-  assert.equal(pkg.name, "@sonim1/preqstation-openclaw");
+  assert.equal(pkg.name, "@sonim1/preqstation-dispatcher");
   assert.equal(pkg.private, false);
   assert.deepEqual(pkg.publishConfig, { access: "public" });
+  assert.deepEqual(pkg.bin, {
+    "preqstation-dispatcher": "./bin/preqstation-dispatcher.mjs",
+  });
   assert.deepEqual(pkg.files, [
+    "bin",
+    "docs",
     "index.mjs",
     "src",
     "openclaw.plugin.json",
@@ -33,8 +38,9 @@ test("README documents npm install as the default path and linked install for lo
 
   assert.match(
     readme,
-    /openclaw plugins install @sonim1\/preqstation-openclaw --dangerously-force-unsafe-install/,
+    /openclaw plugins install @sonim1\/preqstation-dispatcher --dangerously-force-unsafe-install/,
   );
+  assert.match(readme, /OpenClaw plugin id is `preqstation-dispatcher`/);
   assert.match(readme, /Local linked install for active development/i);
 });
 
@@ -52,5 +58,6 @@ test("publish workflow releases the package on main pushes", async () => {
   assert.match(workflow, /writeFileSync\("VERSION", `\$\{pkg\.version\}\\n`\)/);
   assert.match(workflow, /git push/);
   assert.match(workflow, /npm view "\$\{PACKAGE_NAME\}@\$\{PACKAGE_VERSION\}"/);
+  assert.match(workflow, /unset NODE_AUTH_TOKEN/);
   assert.match(workflow, /npm publish --access public/);
 });

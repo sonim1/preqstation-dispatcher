@@ -33,3 +33,18 @@ test("SKILL describes detached launch instead of background PTY execution", asyn
   assert.match(skill, /detached/i);
   assert.match(skill, /Do not use `pty:true` \/ `background:true` for the coding run\./);
 });
+
+test("Hermes docs make Telegram delivery the primary integration path", async () => {
+  const readme = await readRepoFile("README.md");
+  const hermes = await readRepoFile("docs/hermes.md");
+  const skill = await readRepoFile("SKILL.md");
+
+  assert.match(readme, /Hermes Telegram/i);
+  assert.match(readme, /webhook.*deferred/i);
+  assert.match(hermes, /Telegram channel/i);
+  assert.match(hermes, /\/preq_dispatch@PreqHermesBot/);
+  assert.match(hermes, /Bot-to-Bot Communication Mode/i);
+  assert.match(hermes, /Webhook.*deferred/i);
+  assert.match(skill, /Telegram host such as Hermes/i);
+  assert.doesNotMatch(hermes, /^# Hermes Webhook Setup$/m);
+});
