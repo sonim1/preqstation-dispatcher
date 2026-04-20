@@ -43,7 +43,7 @@ test("parses setup auto arguments", () => {
 
 test("setup command auto-maps projects from single-line key=url payload", async () => {
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-auto-inline-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-auto-inline-"),
   );
   const repoRoot = path.join(tempDir, "projects");
   const matchedRepo = path.join(repoRoot, "projects-manager");
@@ -64,7 +64,7 @@ test("setup command auto-maps projects from single-line key=url payload", async 
           return {
             plugins: {
               entries: {
-                "preqstation-openclaw": {
+                "preqstation-dispatcher": {
                   enabled: true,
                   config: {},
                 },
@@ -92,14 +92,14 @@ test("setup command auto-maps projects from single-line key=url payload", async 
   assert.match(result.text, /Matched 1 PREQ project mapping/);
   assert.match(result.text, /MISS -> https:\/\/github.com\/sonim1\/missing-repo/);
   assert.equal(
-    writtenConfig.plugins.entries["preqstation-openclaw"].config.projects.PROJ,
+    writtenConfig.plugins.entries["preqstation-dispatcher"].config.projects.PROJ,
     matchedRepo,
   );
 });
 
 test("setup command writes project mapping into plugin config", async () => {
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-set-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-set-"),
   );
   const repoDir = path.join(tempDir, "projects-manager");
   let writtenConfig = null;
@@ -113,7 +113,7 @@ test("setup command writes project mapping into plugin config", async () => {
           return {
             plugins: {
               entries: {
-                "preqstation-openclaw": {
+                "preqstation-dispatcher": {
                   enabled: true,
                   config: {
                     worktreeRoot: "/tmp/openclaw-worktrees",
@@ -141,11 +141,11 @@ test("setup command writes project mapping into plugin config", async () => {
 
   assert.match(result.text, /Saved PREQ project mapping/);
   assert.equal(
-    writtenConfig.plugins.entries["preqstation-openclaw"].config.projects.PROJ,
+    writtenConfig.plugins.entries["preqstation-dispatcher"].config.projects.PROJ,
     repoDir,
   );
   assert.equal(
-    writtenConfig.plugins.entries["preqstation-openclaw"].config.worktreeRoot,
+    writtenConfig.plugins.entries["preqstation-dispatcher"].config.worktreeRoot,
     "/tmp/openclaw-worktrees",
   );
 });
@@ -158,7 +158,7 @@ test("setup command shows current mappings when called without args", async () =
           return {
             plugins: {
               entries: {
-                "preqstation-openclaw": {
+                "preqstation-dispatcher": {
                   enabled: true,
                   config: {
                     projects: {
@@ -196,7 +196,7 @@ test("setup command rejects missing project paths before saving", async () => {
           return {
             plugins: {
               entries: {
-                "preqstation-openclaw": {
+                "preqstation-dispatcher": {
                   enabled: true,
                   config: {},
                 },
@@ -216,18 +216,18 @@ test("setup command rejects missing project paths before saving", async () => {
     handler({
       channel: "telegram",
       isAuthorizedSender: true,
-      commandBody: "preqsetup set PROJ /tmp/preqstation-openclaw/does-not-exist",
-      args: "set PROJ /tmp/preqstation-openclaw/does-not-exist",
+      commandBody: "preqsetup set PROJ /tmp/preqstation-dispatcher/does-not-exist",
+      args: "set PROJ /tmp/preqstation-dispatcher/does-not-exist",
       config: {},
     }),
-    /Project path does not exist: \/tmp\/preqstation-openclaw\/does-not-exist/,
+    /Project path does not exist: \/tmp\/preqstation-dispatcher\/does-not-exist/,
   );
   assert.equal(writeCount, 0);
 });
 
 test("setup command imports shared PREQ mappings in one shot", async () => {
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-import-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-import-"),
   );
   const repoDir = path.join(tempDir, "projects-manager");
   const sharedMappingPath = path.join(tempDir, "projects.json");
@@ -240,7 +240,7 @@ test("setup command imports shared PREQ mappings in one shot", async () => {
       {
         projects: {
           PROJ: repoDir,
-          PERS: "/tmp/preqstation-openclaw/does-not-exist",
+          PERS: "/tmp/preqstation-dispatcher/does-not-exist",
         },
       },
       null,
@@ -255,7 +255,7 @@ test("setup command imports shared PREQ mappings in one shot", async () => {
           return {
             plugins: {
               entries: {
-                "preqstation-openclaw": {
+                "preqstation-dispatcher": {
                   enabled: true,
                   config: {},
                 },
@@ -282,18 +282,18 @@ test("setup command imports shared PREQ mappings in one shot", async () => {
   assert.match(result.text, /Imported 1 PREQ project mapping/);
   assert.match(result.text, /Skipped invalid shared mappings:/);
   assert.equal(
-    writtenConfig.plugins.entries["preqstation-openclaw"].config.projects.PROJ,
+    writtenConfig.plugins.entries["preqstation-dispatcher"].config.projects.PROJ,
     repoDir,
   );
   assert.equal(
-    writtenConfig.plugins.entries["preqstation-openclaw"].config.projects.PERS,
+    writtenConfig.plugins.entries["preqstation-dispatcher"].config.projects.PERS,
     undefined,
   );
 });
 
 test("setup command auto-maps projects by repo URL under repo roots", async () => {
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-auto-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-auto-"),
   );
   const repoRoot = path.join(tempDir, "projects");
   const matchedRepo = path.join(repoRoot, "projects-manager");
@@ -315,7 +315,7 @@ test("setup command auto-maps projects by repo URL under repo roots", async () =
           return {
             plugins: {
               entries: {
-                "preqstation-openclaw": {
+                "preqstation-dispatcher": {
                   enabled: true,
                   config: {},
                 },
@@ -347,11 +347,11 @@ test("setup command auto-maps projects by repo URL under repo roots", async () =
   assert.match(result.text, /Unmatched projects:/);
   assert.match(result.text, /MISS -> https:\/\/github.com\/sonim1\/missing-repo/);
   assert.equal(
-    writtenConfig.plugins.entries["preqstation-openclaw"].config.projects.PROJ,
+    writtenConfig.plugins.entries["preqstation-dispatcher"].config.projects.PROJ,
     matchedRepo,
   );
   assert.equal(
-    writtenConfig.plugins.entries["preqstation-openclaw"].config.projects.MISS,
+    writtenConfig.plugins.entries["preqstation-dispatcher"].config.projects.MISS,
     undefined,
   );
 });

@@ -2,7 +2,7 @@
 
 ## Summary
 
-This document explains what was broken in the original OpenClaw PREQ dispatch flow, why it failed specifically in Telegram-driven runs, what we changed in the `preqstation-openclaw` plugin, and how the new model works today.
+This document explains what was broken in the original OpenClaw PREQ dispatch flow, why it failed specifically in Telegram-driven runs, what we changed in the `preqstation-dispatcher` plugin, and how the new model works today.
 
 This is written as a blog-ready retrospective and implementation note.
 
@@ -74,7 +74,7 @@ We set the following goals for the new implementation:
 
 ## What We Changed
 
-### 1. Rebuilt `preqstation-openclaw` as a real native OpenClaw plugin
+### 1. Rebuilt `preqstation-dispatcher` as a real native OpenClaw plugin
 
 Instead of leaving it as a loose skill/docs surface, we turned it into an actual plugin with:
 
@@ -208,7 +208,7 @@ We fixed that by wrapping the background launch and PID capture in a subshell so
 Today the OpenClaw side behaves like this:
 
 1. Telegram receives a PREQ dispatch message
-2. `preqstation-openclaw` intercepts it in `before_dispatch`
+2. `preqstation-dispatcher` intercepts it in `before_dispatch`
 3. the plugin resolves the project path
 4. it creates or reuses the task worktree
 5. it writes `.preqstation-prompt.txt`
@@ -227,9 +227,9 @@ This is much closer to the actual mental model we wanted from the beginning:
 ### Install the plugin
 
 ```bash
-openclaw plugins install --link --dangerously-force-unsafe-install /Users/kendrick/projects/preqstation-openclaw
+openclaw plugins install --link --dangerously-force-unsafe-install /path/to/preqstation-dispatcher
 openclaw gateway restart
-openclaw plugins inspect preqstation-openclaw
+openclaw plugins inspect preqstation-dispatcher
 ```
 
 ### Bulk project setup from OpenClaw

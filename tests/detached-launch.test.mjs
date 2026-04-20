@@ -44,7 +44,7 @@ test("before_dispatch handles matched preq messages and parks task flow in waiti
     {
       runtime: { taskFlow },
       pluginConfig: {},
-      rootDir: "/tmp/preqstation-openclaw",
+      rootDir: "/tmp/preqstation-dispatcher",
       logger: { info() {}, error() {} },
     },
     {
@@ -101,7 +101,7 @@ test("before_dispatch ignores unrelated messages", async () => {
     {
       runtime: {},
       pluginConfig: {},
-      rootDir: "/tmp/preqstation-openclaw",
+      rootDir: "/tmp/preqstation-dispatcher",
       logger: { info() {}, error() {} },
     },
     {},

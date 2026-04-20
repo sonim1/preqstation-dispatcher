@@ -4,7 +4,7 @@
 
 **Goal:** Replace the old Telegram/chat-run `background:true pty:true` dispatch path with an OpenClaw plugin that intercepts PREQ dispatch messages, prepares a task worktree/prompt, and launches Codex in a detached way that does not depend on the current chat run staying active.
 
-**Architecture:** Add a small native OpenClaw plugin to `preqstation-openclaw` using `before_dispatch` and the installed OpenClaw plugin SDK. Keep the first pass intentionally narrow: handle PREQ dispatch command parsing, resolve a mapped project path from a local sample mapping file, create or reuse the task worktree, write `.preqstation-prompt.txt`, launch detached Codex, and return an immediate handled reply. Do not try to rebuild full Claude/Gemini parity or Task Flow completion emergence in the first patch.
+**Architecture:** Add a small native OpenClaw plugin to `preqstation-dispatcher` using `before_dispatch` and the installed OpenClaw plugin SDK. Keep the first pass intentionally narrow: handle PREQ dispatch command parsing, resolve a mapped project path from a local sample mapping file, create or reuse the task worktree, write `.preqstation-prompt.txt`, launch detached Codex, and return an immediate handled reply. Do not try to rebuild full Claude/Gemini parity or Task Flow completion emergence in the first patch.
 
 **Tech Stack:** Node.js ESM, OpenClaw plugin SDK, `node:test`, git worktrees, Codex CLI
 

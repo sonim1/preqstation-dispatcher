@@ -1,44 +1,53 @@
-# preqstation-openclaw
+# preqstation-dispatcher
 
-OpenClaw plugin for PREQSTATION dispatch.
+PREQSTATION dispatcher with an OpenClaw adapter and a standalone CLI for Telegram hosts such as Hermes.
 
-Current surface version: `0.1.11` (see [VERSION](/Users/kendrick/projects/preqstation-openclaw/VERSION)).
+Current surface version: `0.1.12` (see [VERSION](VERSION)).
 
-This repo now contains a real native OpenClaw plugin surface again:
+The npm package is `@sonim1/preqstation-dispatcher`. The OpenClaw plugin id is `preqstation-dispatcher`.
 
-- [openclaw.plugin.json](/Users/kendrick/projects/preqstation-openclaw/openclaw.plugin.json)
-- [package.json](/Users/kendrick/projects/preqstation-openclaw/package.json)
-- [index.mjs](/Users/kendrick/projects/preqstation-openclaw/index.mjs)
-- [SKILL.md](/Users/kendrick/projects/preqstation-openclaw/SKILL.md)
-- [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md)
+- `src/core/` owns project mapping, git worktree preparation, prompt rendering, and detached engine launch
+- `src/adapters/openclaw/` owns the OpenClaw `before_dispatch` hook and `/preqsetup`
+- `src/adapters/hermes/` owns optional Hermes payload normalization for deferred webhook experiments
+- `bin/preqstation-dispatcher.mjs` exposes a platform-neutral CLI
 
-`preqstation-skill` remains the Claude Code side. This repo is the OpenClaw side.
+OpenClaw still loads this package through `openclaw.plugin.json` and root `index.mjs`.
 
-## What it does
+`preqstation-skill` remains the worker lifecycle skill used by Claude Code, Codex CLI, and Gemini CLI after the dispatcher launches them.
 
-The plugin intercepts PREQ dispatch messages with the OpenClaw `before_dispatch` hook and handles them before the normal chat run.
+## What It Does
+
+The dispatcher receives PREQ intent, resolves a local project checkout on the dispatcher host, creates or reuses an isolated git worktree, writes `.preqstation-prompt.txt`, and launches the selected engine as a detached process.
+
+Supported engines:
+
+- `claude-code`
+- `codex`
+- `gemini-cli`
+
+Hermes is not an engine. Hermes can be a Telegram host that wakes this dispatcher.
+
+## OpenClaw Adapter
+
+The OpenClaw plugin intercepts PREQ dispatch messages with the OpenClaw `before_dispatch` hook and handles them before the normal chat run.
 
 Current flow:
 
 1. parse a PREQ dispatch message such as `!/skill preqstation-dispatch plan PROJ-327 using codex`
-2. resolve `project_cwd` from an explicit absolute path, a saved plugin mapping, the shared `~/.preqstation-dispatch/projects.json` store, or [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md)
-3. create or reuse an auxiliary git worktree under `~/.openclaw-preq-worktrees`
+2. resolve `project_cwd` from an explicit absolute path, OpenClaw plugin config, the shared `~/.preqstation-dispatch/projects.json` store, or legacy `MEMORY.md`
+3. create or reuse an auxiliary git worktree
 4. write `.preqstation-prompt.txt` into that worktree
 5. create a managed Task Flow record and park it in waiting with detached process metadata
 6. launch the selected CLI as a detached process
 
 This is intentionally not the old PTY/background session model. The plugin does not rely on OpenClaw `background:true` exec or `process action:poll` / `process action:log` for the dispatched coding run.
 
-## Why this exists
-
-Telegram chat runs were creating the worktree and prompt correctly, then dying when late PTY output tried to re-enter a finished run. This plugin avoids that coupling by letting the plugin own dispatch and by launching the coding CLI outside the current chat run.
-
-## Install
+### Install OpenClaw Adapter
 
 Default install from npm:
 
 ```bash
-openclaw plugins install @sonim1/preqstation-openclaw --dangerously-force-unsafe-install
+openclaw plugins install @sonim1/preqstation-dispatcher --dangerously-force-unsafe-install
 openclaw gateway restart
 ```
 
@@ -47,75 +56,23 @@ This plugin intentionally uses `child_process` to create git worktrees and launc
 Local linked install for active development:
 
 ```bash
-openclaw plugins install --link --dangerously-force-unsafe-install /Users/kendrick/projects/preqstation-openclaw
-openclaw gateway restart
-```
-
-If you are on a newer OpenClaw that blocks copied installs because this plugin uses detached local CLI launch, reinstall with:
-
-```bash
-openclaw plugins install --force --dangerously-force-unsafe-install /Users/kendrick/projects/preqstation-openclaw
+openclaw plugins install --link --dangerously-force-unsafe-install /path/to/preqstation-dispatcher
 openclaw gateway restart
 ```
 
 Useful checks:
 
 ```bash
-openclaw plugins inspect preqstation-openclaw
+openclaw plugins inspect preqstation-dispatcher
 openclaw status --all
 ```
 
-## Publishing
-
-Pushes to `main` run `.github/workflows/publish.yml`, test the package, and publish to npm automatically.
-
-Release behavior:
-
-- if the current `package.json` version is not on npm yet, the workflow publishes it as-is
-- if that version already exists on npm, the workflow automatically bumps a patch version, syncs [VERSION](/Users/kendrick/projects/preqstation-openclaw/VERSION), commits the bump back to `main`, and publishes the new version
-- the follow-up run triggered by that bump commit is skipped because the actor is `github-actions[bot]`
-
-One-time setup before the first release:
-
-- add an `NPM_TOKEN` repository secret, or
-- configure npm trusted publishing for `sonim1/preqstation-openclaw`
-
-The workflow is ready for both: it grants `id-token: write` for trusted publishing and also passes `NODE_AUTH_TOKEN` when `NPM_TOKEN` is configured.
-
-## Configuration
-
-The plugin manifest exposes two optional config fields:
-
-- `memoryPath`
-- `projects`
-- `worktreeRoot`
-
-Example config snippet:
-
-```json
-{
-  "plugins": {
-    "entries": {
-      "preqstation-openclaw": {
-        "enabled": true,
-        "config": {
-          "memoryPath": "/Users/kendrick/projects/preqstation-openclaw/MEMORY.md",
-          "worktreeRoot": "/Users/kendrick/.openclaw-preq-worktrees"
-        }
-      }
-    }
-  }
-}
-```
-
-If `memoryPath` is omitted, the plugin reads repo-local [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md).
-
-## Setup
+### OpenClaw Setup
 
 After install, prefer the OpenClaw-native bulk setup command:
 
 ```text
-/preqsetup auto PROJ=https://github.com/sonim1/projects-manager AGAL=https://github.com/sonim1/agalog
+/preqsetup auto PROJ=https://github.com/example/project
 ```
 
 Useful setup commands:
@@ -129,27 +86,87 @@ Useful setup commands:
 /preqsetup unset PROJ
 ```
 
-Example:
+`/preqsetup auto` scans local git repos under `PREQSTATION_REPO_ROOTS` when set, otherwise under `~/projects`, matches local git `origin` URLs against provided repo URLs, and stores successful matches in OpenClaw plugin config.
 
-```text
-/preqsetup auto PROJ=https://github.com/sonim1/projects-manager AGAL=https://github.com/sonim1/agalog
+If another runtime already populated `~/.preqstation-dispatch/projects.json`, OpenClaw can reuse it with `/preqsetup import`.
+
+## Standalone CLI
+
+Install this package wherever the dispatcher host runs, then map each PREQ project to a local checkout.
+
+```bash
+npm install -g @sonim1/preqstation-dispatcher
+preqstation-dispatcher setup set PROJ /absolute/path/to/project
+preqstation-dispatcher setup status
 ```
 
-`/preqsetup auto` scans local git repos under `PREQSTATION_REPO_ROOTS` when set, otherwise under `~/projects`, matches each repo's `origin` remote against the provided repo URL, and stores successful matches in `plugins.entries.preqstation-openclaw.config.projects`.
+Run a dispatch directly:
 
-If you already ran Claude-side `/preqstation:setup`, OpenClaw can still reuse the shared mapping file at `~/.preqstation-dispatch/projects.json`.
+```bash
+preqstation-dispatcher run \
+  --project-key PROJ \
+  --task-key PROJ-327 \
+  --objective implement \
+  --engine codex \
+  --branch-name task/proj-327-example
+```
 
-- `/preqsetup auto` is the recommended path when OpenClaw should own project-path management itself
-- `/preqsetup import` validates every shared mapping it finds there and copies the valid ones into `plugins.entries.preqstation-openclaw.config.projects`
-- `/preqsetup set ...` still lets you override or add one mapping manually
+Run from an optional webhook payload file for adapter smoke tests:
 
-## Command shape
+```bash
+preqstation-dispatcher run-json --payload /path/to/preq-webhook-payload.json
+```
+
+Run from a legacy dispatch message:
+
+```bash
+preqstation-dispatcher run-message --message 'preqstation implement PROJ-327 using codex'
+```
+
+### Public Config Contract
+
+The dispatcher host owns local paths. PREQ server payloads should only describe intent.
+
+Environment variables:
+
+- `PREQSTATION_DISPATCH_HOME`: default `~/.preqstation-dispatch`
+- `PREQSTATION_PROJECTS_FILE`: default `~/.preqstation-dispatch/projects.json`
+- `PREQSTATION_WORKTREE_ROOT`: default `~/.preqstation-dispatch/worktrees`
+- `PREQSTATION_MEMORY_PATH`: optional legacy markdown mapping fallback
+
+Shared mapping file shape:
+
+```json
+{
+  "projects": {
+    "PROJ": "/absolute/path/to/project"
+  }
+}
+```
+
+Do not commit this file. It belongs to the local dispatcher host.
+
+## Hermes Telegram Host
+
+Hermes can trigger the dispatcher by watching the same Telegram channel or group used for PREQ dispatch. See [docs/hermes.md](docs/hermes.md) for the recommended `preq-coder` profile and Telegram setup.
+
+The Hermes Telegram flow is:
+
+1. PREQSTATION sends a structured `/preq_dispatch@PreqHermesBot` message to Telegram
+2. Hermes receives that message in its Telegram profile
+3. Hermes invokes `preqstation-dispatcher`
+4. the dispatcher creates the worktree and launches `claude-code`, `codex`, or `gemini-cli`
+5. the launched worker updates PREQ through the normal `preqstation` lifecycle skill
+
+Telegram messages must not include local project paths. Webhook support is deferred and should stay an advanced option until there is a deliberate public ingress plan.
+
+## Command Shape
 
 Supported trigger styles:
 
 - `/skill preqstation-dispatch plan PROJ-327 using codex`
-- `/skill preqstation-dispatch ask PROJ-328 using codex ask_hint="Acceptance criteria 중심으로 정리해줘"`
-- `!/skill preqstation-dispatch implement PROJ-327 using claude branch_name="task/proj-327/browser-notification-chuga"`
+- `/skill preqstation-dispatch ask PROJ-328 using codex ask_hint="Acceptance criteria"`
+- `!/skill preqstation-dispatch implement PROJ-327 using claude branch_name="task/proj-327-example"`
 - `preqstation implement PROJ-327 with codex`
 - `preqstation implement PROJ-327 in /absolute/path/to/repo with codex`
 
@@ -159,26 +176,18 @@ Parsed fields:
 - task key
 - project key
 - objective
-- optional `branch_name=...`
-- optional `ask_hint=...`
+- optional `branch_name`
+- optional `ask_hint`
+- optional `insight_prompt_b64`
 
-Project path resolution priority:
-
-1. explicit absolute path in the dispatch message
-2. `/preqsetup`-saved mapping in plugin config
-3. shared `~/.preqstation-dispatch/projects.json`
-4. fallback [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md)
-
-## Detached runtime
-
-The plugin writes `.preqstation-prompt.txt` and launches the engine with a short bootstrap prompt that tells it to read that file.
+## Detached Runtime
 
 Detached process artifacts live inside the worktree:
 
 - `.preqstation-dispatch/<engine>.pid`
 - `.preqstation-dispatch/<engine>.log`
 
-Current detached codex launch uses:
+Current detached Codex launch uses:
 
 ```bash
 codex exec --dangerously-bypass-approvals-and-sandbox "Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop."
@@ -186,12 +195,25 @@ codex exec --dangerously-bypass-approvals-and-sandbox "Read and execute instruct
 
 Claude Code and Gemini CLI use the same bootstrap idea with their own binaries.
 
-Ask dispatch now follows the same contract as the worker skill: the run still updates the note, but prototype-style asks may generate local artifacts, publish through an authenticated artifact provider when available, generate screenshot PNGs for HTML prototypes or mockups, and record `Artifacts:` links. If the provider supports temporary external share or quickshare links, the dispatched agent should create 7-day expiring reviewer links and include `access=quickshare` plus `expires=...`.
+## Publishing
 
-## Current limitations
+Pushes to `main` run `.github/workflows/publish.yml`, test the package, and publish to npm automatically.
+
+Release behavior:
+
+- if the current `package.json` version is not on npm yet, the workflow publishes it as-is
+- if that version already exists on npm, the workflow automatically bumps a patch version, syncs [VERSION](VERSION), commits the bump back to `main`, and publishes the new version
+- the follow-up run triggered by that bump commit is skipped because the actor is `github-actions[bot]`
+
+One-time setup before the first release:
+
+- add an `NPM_TOKEN` repository secret, or
+- configure npm trusted publishing for this publishing repository and package
+
+The workflow is ready for both: it grants `id-token: write` for trusted publishing and also passes `NODE_AUTH_TOKEN` when `NPM_TOKEN` is configured.
+
+## Current Limitations
 
 - Completion emergence back into the original chat thread is not wired yet.
-- The plugin currently resolves project mappings from explicit paths, plugin config, the shared `~/.preqstation-dispatch/projects.json`, or [MEMORY.md](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md), not from OpenClaw agent memory.
+- OpenClaw Task Flow tracking is OpenClaw-adapter only. Hermes runs use CLI output and detached log files.
 - Detached process logs are written to the worktree and are not streamed live into Telegram.
-
-Those are deliberate tradeoffs for the first pass: stable dispatch first, richer emergence later.

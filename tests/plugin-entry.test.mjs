@@ -11,7 +11,7 @@ test("native OpenClaw plugin manifest exists", async () => {
   const manifestPath = path.join(repoRoot, "openclaw.plugin.json");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
 
-  assert.equal(manifest.id, "preqstation-openclaw");
+  assert.equal(manifest.id, "preqstation-dispatcher");
   assert.equal(typeof manifest.name, "string");
   assert.equal(typeof manifest.description, "string");
   assert.deepEqual(manifest.configSchema.properties, {
@@ -29,6 +29,17 @@ test("plugin entry exports a native plugin definition", async () => {
   const mod = await import(moduleUrl);
   const plugin = mod.default;
 
-  assert.equal(plugin.id, "preqstation-openclaw");
+  assert.equal(plugin.id, "preqstation-dispatcher");
   assert.equal(typeof plugin.register, "function");
+});
+
+test("OpenClaw adapter exports the native plugin definition directly", async () => {
+  const moduleUrl = pathToFileURL(
+    path.join(repoRoot, "src", "adapters", "openclaw", "index.mjs"),
+  ).href;
+  const mod = await import(moduleUrl);
+
+  assert.equal(mod.default.id, "preqstation-dispatcher");
+  assert.equal(typeof mod.default.register, "function");
+  assert.equal(typeof mod.createBeforeDispatchHandler, "function");
 });

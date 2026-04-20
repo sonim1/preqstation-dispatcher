@@ -16,7 +16,7 @@ function git(args, cwd) {
 
 async function createRepo() {
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-repo-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-repo-"),
   );
   git(["init", "-b", "main"], tempDir);
   git(["config", "user.name", "Codex"], tempDir);
@@ -38,7 +38,7 @@ test("normalizes missing branch names to a project-scoped task branch", () => {
 test("creates an auxiliary worktree and symlinks runtime env files", async () => {
   const repoDir = await createRepo();
   const worktreeRoot = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-worktrees-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-worktrees-"),
   );
 
   const prepared = await prepareWorktree({
@@ -68,16 +68,16 @@ test("creates an auxiliary worktree and symlinks runtime env files", async () =>
 
 test("fails with a clear error when the mapped project path does not exist", async () => {
   const worktreeRoot = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-worktrees-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-worktrees-"),
   );
 
   await assert.rejects(
     prepareWorktree({
-      projectCwd: "/tmp/preqstation-openclaw/does-not-exist",
+      projectCwd: "/tmp/preqstation-dispatcher/does-not-exist",
       projectKey: "PROJ",
       branchName: "task/proj-328/edit-task-isyu",
       worktreeRoot,
     }),
-    /Project path does not exist: \/tmp\/preqstation-openclaw\/does-not-exist/,
+    /Project path does not exist: \/tmp\/preqstation-dispatcher\/does-not-exist/,
   );
 });

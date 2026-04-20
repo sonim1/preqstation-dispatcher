@@ -13,7 +13,7 @@ import {
 
 test("loads project mappings from MEMORY markdown table", async () => {
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-memory-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-memory-"),
   );
   const memoryPath = path.join(tempDir, "MEMORY.md");
 
@@ -49,7 +49,7 @@ test("resolves explicit absolute path before mapping lookup", async () => {
 
 test("does not treat slash commands in ask text as explicit project paths", async () => {
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-ask-slash-command-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-ask-slash-command-"),
   );
   const sharedMappingPath = path.join(tempDir, "projects.json");
 
@@ -79,7 +79,7 @@ test("does not treat slash commands in ask text as explicit project paths", asyn
 
 test("loads shared PREQ dispatch mappings from projects.json", async () => {
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-projects-json-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-projects-json-"),
   );
   const mappingPath = path.join(tempDir, "projects.json");
 
@@ -106,7 +106,7 @@ test("loads shared PREQ dispatch mappings from projects.json", async () => {
 
 test("shared PREQ dispatch mappings are used before MEMORY fallback", async () => {
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "preqstation-openclaw-shared-resolve-"),
+    path.join(os.tmpdir(), "preqstation-dispatcher-shared-resolve-"),
   );
   const sharedMappingPath = path.join(tempDir, "projects.json");
   const memoryPath = path.join(tempDir, "MEMORY.md");
@@ -145,4 +145,17 @@ test("shared PREQ dispatch mappings are used before MEMORY fallback", async () =
   });
 
   assert.equal(cwd, "/Users/example/projects/projects-manager");
+});
+
+test("fails clearly when no mapping source is configured", async () => {
+  await assert.rejects(
+    resolveProjectCwdWithSources({
+      rawMessage: "preqstation implement PROJ-123 using codex",
+      projectKey: "PROJ",
+      configuredProjects: null,
+      sharedMappingPath: "/tmp/preqstation-dispatcher/missing-projects.json",
+      memoryPath: null,
+    }),
+    /No project path mapping found for PROJ/,
+  );
 });
