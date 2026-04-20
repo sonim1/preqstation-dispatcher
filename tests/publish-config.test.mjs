@@ -58,5 +58,6 @@ test("publish workflow releases the package on main pushes", async () => {
   assert.match(workflow, /writeFileSync\("VERSION", `\$\{pkg\.version\}\\n`\)/);
   assert.match(workflow, /git push/);
   assert.match(workflow, /npm view "\$\{PACKAGE_NAME\}@\$\{PACKAGE_VERSION\}"/);
+  assert.match(workflow, /unset NODE_AUTH_TOKEN/);
   assert.match(workflow, /npm publish --access public/);
 });

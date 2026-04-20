@@ -2,7 +2,7 @@
 
 PREQSTATION dispatcher with an OpenClaw adapter and a standalone CLI for Telegram hosts such as Hermes.
 
-Current surface version: `0.1.12` (see [VERSION](VERSION)).
+Current surface version: `0.1.13` (see [VERSION](VERSION)).
 
 The npm package is `@sonim1/preqstation-dispatcher`. The OpenClaw plugin id is `preqstation-dispatcher`.
 
