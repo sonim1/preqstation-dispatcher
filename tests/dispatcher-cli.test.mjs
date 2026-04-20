@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -81,6 +82,64 @@ test("setup set writes a public shared mapping file without platform-specific co
     projects: {
       PROJ: projectPath,
     },
+  });
+});
+
+test("setup auto maps discovered repositories into the shared mapping file", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-dispatcher-auto-"));
+  const mappingPath = path.join(tempDir, "projects.json");
+  const repoRoot = path.join(tempDir, "repos");
+  const projectPath = path.join(repoRoot, "projects-manager");
+  await fs.mkdir(projectPath, { recursive: true });
+  execFileSync("git", ["init"], { cwd: projectPath, stdio: "ignore" });
+  execFileSync(
+    "git",
+    ["remote", "add", "origin", "git@github.com:sonim1/projects-manager.git"],
+    { cwd: projectPath, stdio: "ignore" },
+  );
+
+  const stdout = [];
+  const exitCode = await runDispatcherCli({
+    argv: [
+      "setup",
+      "auto",
+      "PROJ=https://github.com/sonim1/projects-manager",
+      "MISS=https://github.com/sonim1/missing-repo",
+    ],
+    stdout: { write: (value) => stdout.push(value) },
+    stderr: { write: () => {} },
+    env: {
+      PREQSTATION_PROJECTS_FILE: mappingPath,
+      PREQSTATION_REPO_ROOTS: repoRoot,
+    },
+    dispatchPreqRun: async () => {
+      throw new Error("setup must not dispatch");
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(JSON.parse(await fs.readFile(mappingPath, "utf8")), {
+    projects: {
+      PROJ: projectPath,
+    },
+  });
+  assert.deepEqual(JSON.parse(stdout.join("")), {
+    ok: true,
+    mapping_file: mappingPath,
+    matched: {
+      PROJ: projectPath,
+    },
+    unmatched: [
+      {
+        projectKey: "MISS",
+        repoUrl: "https://github.com/sonim1/missing-repo",
+      },
+    ],
+    invalid: [],
+    projects: {
+      PROJ: projectPath,
+    },
+    repo_roots: [repoRoot],
   });
 });
 

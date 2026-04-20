@@ -2,7 +2,7 @@
 
 PREQSTATION dispatcher with an OpenClaw adapter and a standalone CLI for Telegram hosts such as Hermes.
 
-Current surface version: `0.1.13` (see [VERSION](VERSION)).
+Current surface version: `0.1.14` (see [VERSION](VERSION)).
 
 The npm package is `@sonim1/preqstation-dispatcher`. The OpenClaw plugin id is `preqstation-dispatcher`.
 
@@ -51,6 +51,13 @@ openclaw plugins install @sonim1/preqstation-dispatcher --dangerously-force-unsa
 openclaw gateway restart
 ```
 
+If the standalone CLI is already installed, it can run the plugin install command for you:
+
+```bash
+preqstation-dispatcher install openclaw
+openclaw gateway restart
+```
+
 This plugin intentionally uses `child_process` to create git worktrees and launch detached coding CLIs, so current OpenClaw builds require `--dangerously-force-unsafe-install` even for the npm package.
 
 Local linked install for active development:
@@ -93,12 +100,43 @@ If another runtime already populated `~/.preqstation-dispatch/projects.json`, Op
 ## Standalone CLI
 
 Install this package wherever the dispatcher host runs, then map each PREQ project to a local checkout.
+For Hermes, these setup commands are run once on the Hermes host by the operator.
+During real dispatch, Hermes Agent receives the Telegram message and calls this CLI through its terminal/tool execution.
 
 ```bash
 npm install -g @sonim1/preqstation-dispatcher
+preqstation-dispatcher install
+preqstation-dispatcher install hermes
 preqstation-dispatcher setup set PROJ /absolute/path/to/project
+preqstation-dispatcher setup auto PROJ=https://github.com/example/project
 preqstation-dispatcher setup status
 ```
+
+`install` without a target opens a small terminal picker for Hermes or OpenClaw. Automation should call `install hermes` or `install openclaw` directly.
+
+Hermes must have terminal/tool execution enabled. A chat-only Hermes profile cannot create worktrees or launch local worker CLIs.
+
+`install hermes` copies the bundled `preq_dispatch` Hermes skill into `~/.hermes/skills/preqstation/preq_dispatch/SKILL.md` and writes provenance metadata next to it.
+
+`install openclaw` runs:
+
+```bash
+openclaw plugins install @sonim1/preqstation-dispatcher --dangerously-force-unsafe-install
+```
+
+Then restart OpenClaw with `openclaw gateway restart`.
+
+After upgrading the npm package, sync the installed Hermes skill:
+
+```bash
+npm update -g @sonim1/preqstation-dispatcher
+preqstation-dispatcher sync hermes
+preqstation-dispatcher status hermes
+```
+
+If the local Hermes skill was edited, `sync hermes` refuses to overwrite it. Use `preqstation-dispatcher sync hermes --force` to back up the current `SKILL.md` and replace it with the bundled version.
+
+`setup auto` scans local git repos under `PREQSTATION_REPO_ROOTS` when set, otherwise under `~/projects`, matches local git `origin` URLs against the provided repo URLs, and stores successful matches in `~/.preqstation-dispatch/projects.json`.
 
 Run a dispatch directly:
 
@@ -133,6 +171,7 @@ Environment variables:
 - `PREQSTATION_PROJECTS_FILE`: default `~/.preqstation-dispatch/projects.json`
 - `PREQSTATION_WORKTREE_ROOT`: default `~/.preqstation-dispatch/worktrees`
 - `PREQSTATION_MEMORY_PATH`: optional legacy markdown mapping fallback
+- `PREQSTATION_REPO_ROOTS`: optional path-delimited roots for `setup auto`
 
 Shared mapping file shape:
 

@@ -1,6 +1,6 @@
 {
   "name": "@sonim1/preqstation-dispatcher",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": false,
   "description": "PREQSTATION dispatcher with OpenClaw and Telegram-host support",
   "type": "module",
@@ -10,6 +10,7 @@
   "files": [
     "bin",
     "docs",
+    "hermes-skills",
     "index.mjs",
     "src",
     "openclaw.plugin.json",

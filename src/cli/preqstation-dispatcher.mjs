@@ -1,11 +1,23 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import readline from "node:readline/promises";
 
 import { dispatchPreqRun as defaultDispatchPreqRun } from "../core/dispatch-runtime.mjs";
 import { parseHermesDispatchPayload } from "../adapters/hermes/payload.mjs";
 import { parseDispatchMessage } from "../parse-dispatch-message.mjs";
-import { DEFAULT_SHARED_MAPPING_PATH } from "../project-mapping.mjs";
+import {
+  DEFAULT_REPO_ROOTS,
+  DEFAULT_SHARED_MAPPING_PATH,
+  matchProjectsToRepoRoots,
+  readRepoRoots,
+} from "../project-mapping.mjs";
+import { parseAutoMappings } from "../setup-command.mjs";
+import {
+  getHermesSkillStatus,
+  syncHermesSkill,
+} from "../hermes-skill-installer.mjs";
+import { installOpenClawPlugin } from "../openclaw-installer.mjs";
 
 function getDispatchHome(env) {
   return env.PREQSTATION_DISPATCH_HOME || path.join(os.homedir(), ".preqstation-dispatch");
@@ -13,6 +25,10 @@ function getDispatchHome(env) {
 
 function getProjectsFile(env) {
   return env.PREQSTATION_PROJECTS_FILE || DEFAULT_SHARED_MAPPING_PATH;
+}
+
+function getRepoRoots(env) {
+  return readRepoRoots(env.PREQSTATION_REPO_ROOTS || DEFAULT_REPO_ROOTS);
 }
 
 function getWorktreeRoot(env) {
@@ -98,7 +114,12 @@ async function writeProjectMapping({ mappingPath, projectKey, projectPath }) {
 
   const mappings = await readProjectMappings(mappingPath);
   mappings.projects[normalizeProjectKey(projectKey)] = projectPath;
+  await writeProjectMappings({ mappingPath, projects: mappings.projects });
+}
+
+async function writeProjectMappings({ mappingPath, projects }) {
   await fs.mkdir(path.dirname(mappingPath), { recursive: true });
+  const mappings = { projects };
   await fs.writeFile(`${mappingPath}.tmp`, `${JSON.stringify(mappings, null, 2)}\n`, "utf8");
   await fs.rename(`${mappingPath}.tmp`, mappingPath);
 }
@@ -149,7 +170,11 @@ function printUsage(stdout) {
       "  preqstation-dispatcher run-json --payload /path/to/payload.json",
       "  preqstation-dispatcher run-message --message 'preqstation implement PROJ-123 using codex'",
       "  preqstation-dispatcher setup set PROJ /absolute/path/to/project",
+      "  preqstation-dispatcher setup auto PROJ=https://github.com/example/project",
       "  preqstation-dispatcher setup status",
+      "  preqstation-dispatcher install [hermes|openclaw]",
+      "  preqstation-dispatcher sync hermes [--force]",
+      "  preqstation-dispatcher status hermes",
       "",
     ].join("\n"),
   );
@@ -170,6 +195,39 @@ async function handleSetup({ args, stdout, env }) {
     return;
   }
 
+  if (action === "auto") {
+    const { entries, invalid } = parseAutoMappings(args.slice(1).join(" "));
+    if (entries.length === 0) {
+      throw new Error(
+        "Usage: preqstation-dispatcher setup auto PROJ=https://github.com/example/project",
+      );
+    }
+
+    const mappings = await readProjectMappings(mappingPath);
+    const discovered = await matchProjectsToRepoRoots(entries, getRepoRoots(env));
+    const nextProjects = {
+      ...mappings.projects,
+      ...discovered.matched,
+    };
+
+    if (Object.keys(discovered.matched).length > 0) {
+      await writeProjectMappings({ mappingPath, projects: nextProjects });
+    }
+
+    stdout.write(
+      `${JSON.stringify({
+        ok: true,
+        mapping_file: mappingPath,
+        matched: discovered.matched,
+        unmatched: discovered.unmatched,
+        invalid,
+        projects: nextProjects,
+        repo_roots: discovered.repoRoots,
+      })}\n`,
+    );
+    return;
+  }
+
   if (action === "status") {
     const mappings = await readProjectMappings(mappingPath);
     stdout.write(`${JSON.stringify({ ok: true, mapping_file: mappingPath, ...mappings })}\n`);
@@ -177,6 +235,77 @@ async function handleSetup({ args, stdout, env }) {
   }
 
   throw new Error("Usage: preqstation-dispatcher setup set PROJECT_KEY /absolute/path");
+}
+
+async function promptInstallTarget({ stdin, stdout }) {
+  stdout.write(
+    [
+      "Select install target:",
+      "  1) hermes   Install the bundled Hermes preq_dispatch skill",
+      "  2) openclaw Install the OpenClaw plugin package",
+      "Target [1-2]: ",
+    ].join("\n"),
+  );
+
+  const rl = readline.createInterface({
+    input: stdin,
+    output: stdout,
+    terminal: false,
+  });
+  try {
+    const answer = (await rl.question("")).trim().toLowerCase();
+    stdout.write("\n");
+    if (answer === "1" || answer === "hermes") {
+      return "hermes";
+    }
+    if (answer === "2" || answer === "openclaw") {
+      return "openclaw";
+    }
+    throw new Error("Install target must be hermes or openclaw");
+  } finally {
+    rl.close();
+  }
+}
+
+async function handleInstallCommand({ args, stdin, stdout, env }) {
+  const { options, positional } = parseOptions(args);
+  const target = positional[0] ?? (await promptInstallTarget({ stdin, stdout }));
+
+  if (target === "hermes") {
+    const result = await syncHermesSkill({
+      env,
+      force: options.force === "true",
+    });
+    stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
+
+  if (target === "openclaw") {
+    stdout.write(`${JSON.stringify(await installOpenClawPlugin({ env }))}\n`);
+    return;
+  }
+
+  throw new Error("Usage: preqstation-dispatcher install [hermes|openclaw]");
+}
+
+async function handlePlatformCommand({ command, args, stdout, env }) {
+  const { options, positional } = parseOptions(args);
+  const [target] = positional;
+
+  if (command === "status" && target === "hermes") {
+    stdout.write(`${JSON.stringify(await getHermesSkillStatus({ env }))}\n`);
+    return;
+  }
+
+  if (target !== "hermes") {
+    throw new Error(`Usage: preqstation-dispatcher ${command} hermes`);
+  }
+
+  const result = await syncHermesSkill({
+    env,
+    force: options.force === "true",
+  });
+  stdout.write(`${JSON.stringify(result)}\n`);
 }
 
 function writeDispatchResult({ stdout, parsed, result }) {
@@ -197,6 +326,7 @@ function writeDispatchResult({ stdout, parsed, result }) {
 
 export async function runDispatcherCli({
   argv,
+  stdin = process.stdin,
   stdout = process.stdout,
   stderr = process.stderr,
   env = process.env,
@@ -212,6 +342,16 @@ export async function runDispatcherCli({
 
     if (command === "setup") {
       await handleSetup({ args, stdout, env });
+      return 0;
+    }
+
+    if (command === "install") {
+      await handleInstallCommand({ args, stdin, stdout, env });
+      return 0;
+    }
+
+    if (command === "sync" || command === "status") {
+      await handlePlatformCommand({ command, args, stdout, env });
       return 0;
     }
 

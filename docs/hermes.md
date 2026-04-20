@@ -12,13 +12,47 @@ Webhook and Tailscale Funnel support is deferred. Keep it as an advanced option 
 
 ## Install The Dispatcher On The Hermes Host
 
+There are two separate phases:
+
+- operator setup: run `setup` commands once on the machine where Hermes runs
+- agent dispatch: Hermes Agent receives Telegram messages and uses its terminal tool to run `preqstation-dispatcher run ...`
+
+`preqstation-dispatcher` is not a replacement for Hermes Agent. It is the local launcher that Hermes Agent calls after the LLM parses a trusted PREQ dispatch message.
+
 ```bash
 npm install -g @sonim1/preqstation-dispatcher
+preqstation-dispatcher install
+preqstation-dispatcher install hermes
 preqstation-dispatcher setup set PROJ /absolute/path/to/project
+preqstation-dispatcher setup auto PROJ=https://github.com/example/project
 preqstation-dispatcher setup status
 ```
 
+`install` without a target opens a small terminal picker. For scripts, use `preqstation-dispatcher install hermes`.
+
+`install hermes` installs the bundled `preq_dispatch` skill to `~/.hermes/skills/preqstation/preq_dispatch/SKILL.md`.
+
+When the npm package changes, update the local Hermes skill with:
+
+```bash
+npm update -g @sonim1/preqstation-dispatcher
+preqstation-dispatcher sync hermes
+preqstation-dispatcher status hermes
+```
+
+If the local skill was edited, `sync hermes` stops instead of overwriting it. Run `preqstation-dispatcher sync hermes --force` only when you want to back up and replace the local copy.
+
+For bulk setup, put every local checkout under `~/projects` or set `PREQSTATION_REPO_ROOTS`, then pass the PREQ project keys with repo URLs:
+
+```bash
+preqstation-dispatcher setup auto \
+  PROJ=https://github.com/sonim1/project-manager \
+  PERS=https://github.com/sonim1/dev-blog
+```
+
 The dispatcher host must also have the selected worker CLI installed, for example `codex`, `claude`, or `gemini`.
+
+The Hermes profile must have terminal/tool execution enabled. If Hermes is configured as a chat-only agent with no terminal backend, this integration cannot launch local worktrees or worker CLIs.
 
 The dispatcher host owns local paths. PREQSTATION and Telegram messages should send project keys, task keys, objectives, engines, and branch names only.
 
@@ -46,6 +80,7 @@ Rule: never implement PREQ tasks directly in the Hermes run.
 
 The profile should have access to:
 
+- terminal/tool execution
 - the `preqstation-dispatcher` binary
 - the local project checkouts mapped in `~/.preqstation-dispatch/projects.json`
 - the worker CLIs it may launch

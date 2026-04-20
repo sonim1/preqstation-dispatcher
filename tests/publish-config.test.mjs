@@ -23,6 +23,7 @@ test("package metadata is publishable to the public npm registry", async () => {
   assert.deepEqual(pkg.files, [
     "bin",
     "docs",
+    "hermes-skills",
     "index.mjs",
     "src",
     "openclaw.plugin.json",

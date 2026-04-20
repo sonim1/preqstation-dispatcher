@@ -89,7 +89,7 @@ export function parseSetupArgs(args) {
   };
 }
 
-function parseAutoMappings(payload) {
+export function parseAutoMappings(payload) {
   const entries = [];
   const invalid = [];
 
