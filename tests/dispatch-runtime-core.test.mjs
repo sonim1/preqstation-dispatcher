@@ -15,6 +15,8 @@ test("dispatchPreqRun resolves a project, prepares a worktree, writes a prompt, 
     branchName: "task/proj-123-example",
     askHint: null,
     insightPromptB64: null,
+    qaRunId: null,
+    qaTaskKeys: null,
   };
 
   const result = await dispatchPreqRun({
@@ -75,8 +77,22 @@ test("dispatchPreqRun resolves a project, prepares a worktree, writes a prompt, 
     projectCwd: "/tmp/project",
     projectKey: "PROJ",
     taskKey: "PROJ-123",
+    objective: "implement",
     branchName: "task/proj-123-example",
     worktreeRoot: "/tmp/worktrees",
+  });
+  assert.deepEqual(calls[2][1], {
+    taskKey: "PROJ-123",
+    projectKey: "PROJ",
+    branchName: "task/proj-123-example",
+    objective: "implement",
+    engine: "codex",
+    cwd: "/tmp/worktrees/PROJ/task-proj-123-example",
+    projectCwd: "/tmp/project",
+    askHint: null,
+    insightPromptB64: null,
+    qaRunId: null,
+    qaTaskKeys: null,
   });
   assert.deepEqual(calls[3][1], {
     cwd: "/tmp/worktrees/PROJ/task-proj-123-example",

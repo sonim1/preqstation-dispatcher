@@ -1,5 +1,18 @@
-const TASK_KEY_PATTERN = /\b([A-Z][A-Z0-9]+-\d+)\b/;
+const TASK_KEY_PATTERN = /^([A-Z][A-Z0-9]+-\d+)$/u;
 const PROJECT_KEY_PATTERN = /^[A-Z][A-Z0-9_-]{0,19}$/u;
+
+function normalizeDispatchCommand(message) {
+  return message
+    .replace(/^!\s*/u, "")
+    .replace(/^\/skill\s+preqstation-dispatch\s*/iu, "")
+    .replace(/^preqstation-dispatch\s*/iu, "")
+    .replace(/^preqstation\s*/iu, "")
+    .trim();
+}
+
+function tokenizeCommand(message) {
+  return normalizeDispatchCommand(message).split(/\s+/u).filter(Boolean);
+}
 
 function normalizeEngine(message) {
   if (/\bclaude(?:-code)?\b/i.test(message)) {
@@ -14,49 +27,59 @@ function normalizeEngine(message) {
   return "claude-code";
 }
 
-function parseBranchName(message) {
-  const quotedMatch = message.match(/\bbranch(?:_name)?=(["'])(.*?)\1/i);
+function parseMetadataValue(message, key) {
+  const quotedMatch = message.match(new RegExp(`\\b${key}=(["'])(.*?)\\1`, "i"));
   if (quotedMatch) {
     return quotedMatch[2].trim() || null;
   }
 
-  const bareMatch = message.match(/\bbranch(?:_name)?=([^\s]+)/i);
+  const bareMatch = message.match(new RegExp(`\\b${key}=([^\\s]+)`, "i"));
   return bareMatch ? bareMatch[1].trim() : null;
+}
+
+function parseBranchName(message) {
+  return parseMetadataValue(message, "branch(?:_name)?");
 }
 
 function parseAskHint(message) {
-  const quotedMatch = message.match(/\bask_hint=(["'])(.*?)\1/i);
-  if (quotedMatch) {
-    return quotedMatch[2].trim() || null;
-  }
-
-  const bareMatch = message.match(/\bask_hint=([^\s]+)/i);
-  return bareMatch ? bareMatch[1].trim() : null;
+  return parseMetadataValue(message, "ask_hint");
 }
 
 function parseInsightPromptB64(message) {
-  const quotedMatch = message.match(/\binsight_prompt_b64=(["'])(.*?)\1/i);
-  if (quotedMatch) {
-    return quotedMatch[2].trim() || null;
+  return parseMetadataValue(message, "insight_prompt_b64");
+}
+
+function parseQaRunId(message) {
+  return parseMetadataValue(message, "qa_run_id");
+}
+
+function parseQaTaskKeys(message) {
+  const rawValue = parseMetadataValue(message, "qa_task_keys");
+  if (!rawValue) {
+    return null;
   }
 
-  const bareMatch = message.match(/\binsight_prompt_b64=([^\s]+)/i);
-  return bareMatch ? bareMatch[1].trim() : null;
+  const taskKeys = rawValue
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return taskKeys.length > 0 ? taskKeys : null;
 }
 
-function parseObjective(message) {
-  const normalized = message
-    .replace(/^!\s*/u, "")
-    .replace(/^\/skill\s+preqstation-dispatch\s*/iu, "")
-    .replace(/^preqstation-dispatch\s*/iu, "")
-    .replace(/^preqstation\s*/iu, "")
-    .trim();
-
-  const firstToken = normalized.split(/\s+/u)[0];
-  return firstToken || "implement";
+function parseObjective(tokens) {
+  return tokens[0] || "implement";
 }
 
-function parseProjectKey(message, objective, taskKey) {
+function parseTaskKey(subjectToken) {
+  if (!subjectToken) {
+    return null;
+  }
+
+  const match = subjectToken.match(TASK_KEY_PATTERN);
+  return match ? match[1] : null;
+}
+
+function parseProjectKey(objective, taskKey, subjectToken) {
   if (taskKey) {
     const [projectKey] = taskKey.split("-");
     return projectKey;
@@ -66,15 +89,7 @@ function parseProjectKey(message, objective, taskKey) {
     return null;
   }
 
-  const normalized = message
-    .replace(/^!\s*/u, "")
-    .replace(/^\/skill\s+preqstation-dispatch\s*/iu, "")
-    .replace(/^preqstation-dispatch\s*/iu, "")
-    .replace(/^preqstation\s*/iu, "")
-    .trim();
-
-  const tokens = normalized.split(/\s+/u).filter(Boolean);
-  const projectKey = tokens[1]?.trim().toUpperCase() ?? "";
+  const projectKey = subjectToken?.trim().toUpperCase() ?? "";
   return PROJECT_KEY_PATTERN.test(projectKey) ? projectKey : null;
 }
 
@@ -83,10 +98,11 @@ export function parseDispatchMessage(message) {
     return null;
   }
 
-  const objective = parseObjective(message);
-  const taskMatch = message.match(TASK_KEY_PATTERN);
-  const taskKey = taskMatch ? taskMatch[1] : null;
-  const projectKey = parseProjectKey(message, objective, taskKey);
+  const tokens = tokenizeCommand(message);
+  const objective = parseObjective(tokens);
+  const subjectToken = tokens[1] ?? null;
+  const taskKey = parseTaskKey(subjectToken);
+  const projectKey = parseProjectKey(objective, taskKey, subjectToken);
 
   if (!taskKey && !projectKey) {
     return null;
@@ -100,6 +116,8 @@ export function parseDispatchMessage(message) {
     branchName: parseBranchName(message),
     askHint: parseAskHint(message),
     insightPromptB64: parseInsightPromptB64(message),
+    qaRunId: parseQaRunId(message),
+    qaTaskKeys: parseQaTaskKeys(message),
     rawMessage: message,
   };
 }

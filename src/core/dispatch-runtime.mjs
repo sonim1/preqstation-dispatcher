@@ -42,6 +42,7 @@ export async function dispatchPreqRun({
     projectCwd,
     projectKey: parsed.projectKey,
     taskKey: parsed.taskKey,
+    objective: parsed.objective,
     branchName: parsed.branchName,
     worktreeRoot,
   });
@@ -56,6 +57,8 @@ export async function dispatchPreqRun({
     projectCwd,
     askHint: parsed.askHint,
     insightPromptB64: parsed.insightPromptB64,
+    qaRunId: parsed.qaRunId,
+    qaTaskKeys: parsed.qaTaskKeys,
   });
 
   await dependencies.writePromptFile({ cwd: prepared.cwd, prompt });

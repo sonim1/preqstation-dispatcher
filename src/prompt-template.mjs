@@ -21,8 +21,14 @@ export function renderPrompt({
   projectCwd,
   askHint,
   insightPromptB64,
+  qaRunId,
+  qaTaskKeys,
 }) {
   const insightPrompt = decodePromptMetadata(insightPromptB64);
+  const qaTaskKeyList =
+    Array.isArray(qaTaskKeys) && qaTaskKeys.length > 0
+      ? qaTaskKeys.join(", ")
+      : "N/A";
   const taskInstructions = taskKey
     ? [
         `3) If Task ID is present, call preq_get_task("${taskKey}") first.`,
@@ -41,6 +47,8 @@ export function renderPrompt({
     `User Objective: ${objective}`,
     `Ask Hint: ${askHint ?? "N/A"}`,
     `Insight Prompt: ${insightPrompt || "N/A"}`,
+    `QA Run ID: ${qaRunId ?? "N/A"}`,
+    `QA Task Keys: ${qaTaskKeyList}`,
     "",
     "Execution Requirements:",
     `1) Work only inside ${cwd}.`,
@@ -50,10 +58,11 @@ export function renderPrompt({
     "6) Prototype-style asks may generate local artifacts. If an authenticated artifact provider is already available, attempt publication and keep private-or-skip by using authenticated workspace/share targets when possible. If share or quickshare-style temporary external links are available, create 7-day expiring reviewer links, record them with access=quickshare and expires=..., and do not create non-expiring anyone-with-the-link URLs. If the artifact is an HTML prototype or HTML mockup, generate at least one screenshot PNG and attempt to publish both the HTML source and screenshot. Record published links under an Artifacts: markdown block and record the artifact publishing result or skip reason in the note. If Ask Hint is present, treat it as optional note-rewrite guidance rather than a new workflow requirement.",
     "7) If User Objective is insight, inspect the current local project, call preq_list_tasks(projectKey=..., detail=full), avoid duplicate work, and create Inbox tasks with preq_create_task.",
     "8) If User Objective is insight, use Insight Prompt only as task-generation guidance and do not mutate existing tasks.",
-    "9) Use the PREQSTATION lifecycle skill as the source of truth for status transitions.",
-    "10) If ./.preqstation-prompt.txt is missing, stop instead of improvising.",
-    `11) When finished, clean up the worktree with: git -C ${projectCwd} worktree remove ${cwd} --force && git -C ${projectCwd} worktree prune`,
-    '12) When completely finished: openclaw system event --text "Done: <brief summary>" --mode now',
+    "9) If User Objective is qa, use QA Run ID and QA Task Keys from this prompt as the QA execution context. When QA Run ID is present, update the QA run lifecycle instead of inventing a task-scoped run.",
+    "10) Use the PREQSTATION lifecycle skill as the source of truth for status transitions.",
+    "11) If ./.preqstation-prompt.txt is missing, stop instead of improvising.",
+    `12) When finished, clean up the worktree with: git -C ${projectCwd} worktree remove ${cwd} --force && git -C ${projectCwd} worktree prune`,
+    '13) When completely finished: openclaw system event --text "Done: <brief summary>" --mode now',
     "",
     "Task handling bootstrap:",
     'Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop.',

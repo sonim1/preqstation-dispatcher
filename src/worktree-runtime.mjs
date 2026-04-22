@@ -78,12 +78,26 @@ async function symlinkRuntimeEnvFiles(projectCwd, cwd) {
   }
 }
 
-export function normalizeBranchName({ projectKey, taskKey, branchName }) {
+export function normalizeBranchName({ projectKey, taskKey, branchName, objective }) {
   if (branchName) {
     return branchName;
   }
 
   const normalizedProjectKey = projectKey.toLowerCase();
+  if (!taskKey) {
+    if (!objective) {
+      const fallbackTaskKey = `${projectKey}-dispatch`
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/gu, "-");
+      return `preqstation/${normalizedProjectKey}/task-${fallbackTaskKey}`;
+    }
+
+    const normalizedObjective = objective
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/gu, "-");
+    return `preqstation/${normalizedProjectKey}/${normalizedObjective}`;
+  }
+
   const normalizedTaskKey = taskKey.toLowerCase().replace(/[^a-z0-9-]+/gu, "-");
   return `preqstation/${normalizedProjectKey}/task-${normalizedTaskKey}`;
 }
@@ -91,7 +105,8 @@ export function normalizeBranchName({ projectKey, taskKey, branchName }) {
 export async function prepareWorktree({
   projectCwd,
   projectKey,
-  taskKey = `${projectKey}-dispatch`,
+  taskKey = null,
+  objective = null,
   branchName,
   worktreeRoot,
 }) {
@@ -100,6 +115,7 @@ export async function prepareWorktree({
   const resolvedBranchName = normalizeBranchName({
     projectKey,
     taskKey,
+    objective,
     branchName,
   });
   const branchSlug = resolvedBranchName.replaceAll("/", "-");

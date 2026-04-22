@@ -16,6 +16,8 @@ test("parses telegram relay dispatch syntax", () => {
     branchName: "task/proj-327/browser-notification-chuga",
     askHint: null,
     insightPromptB64: null,
+    qaRunId: null,
+    qaTaskKeys: null,
     rawMessage:
       '!/skill preqstation-dispatch plan PROJ-327 using codex branch_name="task/proj-327/browser-notification-chuga"',
   });
@@ -34,6 +36,8 @@ test("parses plain-language preqstation dispatch text", () => {
     branchName: null,
     askHint: null,
     insightPromptB64: null,
+    qaRunId: null,
+    qaTaskKeys: null,
     rawMessage: "preqstation implement PROJ-12 with codex",
   });
 });
@@ -51,6 +55,8 @@ test("parses ask objective with ask_hint metadata", () => {
     branchName: null,
     askHint: "Acceptance criteria 중심으로 정리해줘",
     insightPromptB64: null,
+    qaRunId: null,
+    qaTaskKeys: null,
     rawMessage:
       '!/skill preqstation-dispatch ask PROJ-328 using codex ask_hint="Acceptance criteria 중심으로 정리해줘"',
   });
@@ -69,8 +75,49 @@ test("parses project-level insight commands without a task key", () => {
     branchName: null,
     askHint: null,
     insightPromptB64: "cHJvbXB0LWJhc2U2NA==",
+    qaRunId: null,
+    qaTaskKeys: null,
     rawMessage:
       '!/skill preqstation-dispatch insight PROJ using codex insight_prompt_b64="cHJvbXB0LWJhc2U2NA=="',
+  });
+});
+
+test("parses project-level qa metadata without treating qa_task_keys as the primary task", () => {
+  const parsed = parseDispatchMessage(
+    '!/skill preqstation-dispatch qa PROJ using claude-code branch_name="main" qa_run_id="run-123" qa_task_keys="PROJ-1,PROJ-2"',
+  );
+
+  assert.deepEqual(parsed, {
+    engine: "claude-code",
+    taskKey: null,
+    projectKey: "PROJ",
+    objective: "qa",
+    branchName: "main",
+    askHint: null,
+    insightPromptB64: null,
+    qaRunId: "run-123",
+    qaTaskKeys: ["PROJ-1", "PROJ-2"],
+    rawMessage:
+      '!/skill preqstation-dispatch qa PROJ using claude-code branch_name="main" qa_run_id="run-123" qa_task_keys="PROJ-1,PROJ-2"',
+  });
+});
+
+test("parses task-level qa commands with a real task key", () => {
+  const parsed = parseDispatchMessage(
+    '!/skill preqstation-dispatch qa PROJ-328 using codex',
+  );
+
+  assert.deepEqual(parsed, {
+    engine: "codex",
+    taskKey: "PROJ-328",
+    projectKey: "PROJ",
+    objective: "qa",
+    branchName: null,
+    askHint: null,
+    insightPromptB64: null,
+    qaRunId: null,
+    qaTaskKeys: null,
+    rawMessage: '!/skill preqstation-dispatch qa PROJ-328 using codex',
   });
 });
 

@@ -35,6 +35,18 @@ test("normalizes missing branch names to a project-scoped task branch", () => {
   );
 });
 
+test("normalizes project-level dispatches without a task key", () => {
+  assert.equal(
+    normalizeBranchName({
+      projectKey: "PROJ",
+      taskKey: null,
+      branchName: null,
+      objective: "insight",
+    }),
+    "preqstation/proj/insight",
+  );
+});
+
 test("creates an auxiliary worktree and symlinks runtime env files", async () => {
   const repoDir = await createRepo();
   const worktreeRoot = await fs.mkdtemp(
@@ -79,5 +91,26 @@ test("fails with a clear error when the mapped project path does not exist", asy
       worktreeRoot,
     }),
     /Project path does not exist: \/tmp\/preqstation-dispatcher\/does-not-exist/,
+  );
+});
+
+test("creates a project-level worktree when task key is absent", async () => {
+  const repoDir = await createRepo();
+  const worktreeRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-dispatcher-worktrees-"),
+  );
+
+  const prepared = await prepareWorktree({
+    projectCwd: repoDir,
+    projectKey: "PROJ",
+    taskKey: null,
+    objective: "insight",
+    worktreeRoot,
+  });
+
+  assert.equal(prepared.branchName, "preqstation/proj/insight");
+  assert.equal(
+    prepared.cwd,
+    path.join(worktreeRoot, "PROJ", "preqstation-proj-insight"),
   );
 });

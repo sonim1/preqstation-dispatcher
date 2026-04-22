@@ -71,3 +71,23 @@ test("renders insight-specific task generation guidance", () => {
   assert.match(prompt, /preq_list_tasks\(projectKey=\.\.\., detail=full\)/);
   assert.match(prompt, /preq_create_task/);
 });
+
+test("renders qa run metadata for project-level qa dispatches", () => {
+  const prompt = renderPrompt({
+    taskKey: null,
+    projectKey: "PROJ",
+    branchName: "main",
+    objective: "qa",
+    engine: "claude-code",
+    cwd: "/tmp/worktree/proj/main",
+    projectCwd: "/tmp/project",
+    qaRunId: "run-123",
+    qaTaskKeys: ["PROJ-1", "PROJ-2"],
+  });
+
+  assert.match(prompt, /User Objective: qa/);
+  assert.match(prompt, /QA Run ID: run-123/);
+  assert.match(prompt, /QA Task Keys: PROJ-1, PROJ-2/);
+  assert.match(prompt, /Task ID may be absent for project-level objectives/);
+  assert.match(prompt, /use QA Run ID and QA Task Keys from this prompt/i);
+});
