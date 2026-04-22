@@ -6,6 +6,8 @@ Current surface version: `0.1.14` (see [VERSION](VERSION)).
 
 The npm package is `@sonim1/preqstation-dispatcher`. The OpenClaw plugin id is `preqstation-dispatcher`.
 
+This repository is the durable public dispatcher surface for PREQSTATION. OpenClaw is the runtime host, while `preqstation-skill` remains the worker/runtime package used after dispatch.
+
 - `src/core/` owns project mapping, git worktree preparation, prompt rendering, and detached engine launch
 - `src/adapters/openclaw/` owns the OpenClaw `before_dispatch` hook and `/preqsetup`
 - `src/adapters/hermes/` owns optional Hermes payload normalization for deferred webhook experiments
