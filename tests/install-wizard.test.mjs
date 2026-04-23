@@ -65,10 +65,12 @@ test("promptInstallPlan skips the PREQ URL when no runtimes are selected", async
 
 test("runInstallWizard executes selected host installs and runtime MCP setup", async () => {
   const calls = [];
+  const output = [];
 
   const result = await runInstallWizard({
     env: { PATH: process.env.PATH },
     force: true,
+    outputStream: { write: (value) => output.push(value) },
     promptInstallPlanFn: async () => ({
       installTargets: ["openclaw", "hermes"],
       runtimeEngines: ["codex", "gemini-cli"],
@@ -85,20 +87,27 @@ test("runInstallWizard executes selected host installs and runtime MCP setup", a
     },
     installRuntimeMcpServersFn: async ({ env, runtimes, serverUrl }) => {
       calls.push(["mcp", env, runtimes, serverUrl]);
-      return [
-        { ok: true, target: "codex", action: "mcp_installed" },
-        { ok: true, target: "gemini-cli", action: "mcp_installed" },
-      ];
+      return runtimes.map((runtime) => ({
+        ok: true,
+        target: runtime,
+        action: "mcp_installed",
+      }));
     },
   });
 
   assert.deepEqual(calls, [
     ["openclaw", { PATH: process.env.PATH }],
     ["hermes", { PATH: process.env.PATH }, true],
-    ["mcp", { PATH: process.env.PATH }, ["codex", "gemini-cli"], "https://preq.example.com"],
+    ["mcp", { PATH: process.env.PATH }, ["codex"], "https://preq.example.com"],
+    ["mcp", { PATH: process.env.PATH }, ["gemini-cli"], "https://preq.example.com"],
   ]);
   assert.deepEqual(result.install_targets, ["openclaw", "hermes"]);
   assert.deepEqual(result.runtime_engines, ["codex", "gemini-cli"]);
   assert.equal(result.mcp_url, "https://preq.example.com/mcp");
   assert.equal(result.results.length, 4);
+  assert.match(output.join(""), /Using PREQ MCP endpoint: https:\/\/preq\.example\.com\/mcp/);
+  assert.match(output.join(""), /Installing OpenClaw/);
+  assert.match(output.join(""), /Installing Hermes Agent/);
+  assert.match(output.join(""), /Registering Codex MCP/);
+  assert.match(output.join(""), /Registering Gemini CLI MCP/);
 });

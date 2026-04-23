@@ -10,12 +10,12 @@ import {
 
 const INSTALL_TARGET_CHOICES = [
   {
-    name: "OpenClaw adapter",
+    name: "OpenClaw",
     value: "openclaw",
     description: "Install the OpenClaw plugin package",
   },
   {
-    name: "Hermes skill",
+    name: "Hermes Agent",
     value: "hermes",
     description: "Install the bundled Hermes preq_dispatch skill",
   },
@@ -45,6 +45,33 @@ function createPromptContext({ inputStream, outputStream }) {
     output: outputStream,
     clearPromptOnDone: false,
   };
+}
+
+function writeProgress(outputStream, message) {
+  outputStream.write(`${message}\n`);
+}
+
+function describeTarget(target) {
+  if (target === "openclaw") {
+    return "OpenClaw";
+  }
+  if (target === "hermes") {
+    return "Hermes Agent";
+  }
+  return target;
+}
+
+function describeRuntime(runtime) {
+  if (runtime === "claude-code") {
+    return "Claude Code MCP";
+  }
+  if (runtime === "codex") {
+    return "Codex MCP";
+  }
+  if (runtime === "gemini-cli") {
+    return "Gemini CLI MCP";
+  }
+  return runtime;
 }
 
 export async function promptInstallPlan({
@@ -113,19 +140,32 @@ export async function runInstallWizard({
   });
   const results = [];
 
+  if (plan.runtimeEngines.length > 0) {
+    writeProgress(outputStream, `Using PREQ MCP endpoint: ${plan.mcpUrl}`);
+  }
+
   for (const target of plan.installTargets) {
+    writeProgress(outputStream, `Installing ${describeTarget(target)}...`);
     if (target === "hermes") {
-      results.push(
-        await syncHermesSkillFn({
-          env,
-          force,
-        }),
+      const result = await syncHermesSkillFn({
+        env,
+        force,
+      });
+      results.push(result);
+      writeProgress(
+        outputStream,
+        `✔ ${describeTarget(target)} ${result.action === "updated" ? "updated" : "installed"}.`,
       );
       continue;
     }
 
     if (target === "openclaw") {
-      results.push(await installOpenClawPluginFn({ env }));
+      const result = await installOpenClawPluginFn({ env });
+      results.push(result);
+      writeProgress(
+        outputStream,
+        `✔ ${describeTarget(target)} ${result.action === "updated" ? "updated" : "installed"}.`,
+      );
       continue;
     }
 
@@ -133,13 +173,16 @@ export async function runInstallWizard({
   }
 
   if (plan.runtimeEngines.length > 0) {
-    results.push(
-      ...(await installRuntimeMcpServersFn({
+    for (const runtime of plan.runtimeEngines) {
+      writeProgress(outputStream, `Registering ${describeRuntime(runtime)}...`);
+      const runtimeResults = await installRuntimeMcpServersFn({
         env,
-        runtimes: plan.runtimeEngines,
+        runtimes: [runtime],
         serverUrl: plan.preqstationServerUrl,
-      })),
-    );
+      });
+      results.push(...runtimeResults);
+      writeProgress(outputStream, `✔ ${describeRuntime(runtime)} registered.`);
+    }
   }
 
   return {
