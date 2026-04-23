@@ -28,7 +28,7 @@ preqstation-dispatcher setup auto PROJ=https://github.com/example/project
 preqstation-dispatcher setup status
 ```
 
-`install` without a target opens a small terminal picker. For scripts, use `preqstation-dispatcher install hermes`.
+`install` without a target opens an interactive wizard for OpenClaw, Hermes, and optional PREQ MCP runtime setup. For scripts, use `preqstation-dispatcher install hermes`.
 
 `install hermes` installs the bundled `preq_dispatch` skill to `~/.hermes/skills/preqstation/preq_dispatch/SKILL.md`.
 

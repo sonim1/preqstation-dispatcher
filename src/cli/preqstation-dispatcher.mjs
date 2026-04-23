@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import readline from "node:readline/promises";
 
 import { dispatchPreqRun as defaultDispatchPreqRun } from "../core/dispatch-runtime.mjs";
 import { parseHermesDispatchPayload } from "../adapters/hermes/payload.mjs";
+import { runInstallWizard as defaultRunInstallWizard } from "../install-wizard.mjs";
 import { parseDispatchMessage } from "../parse-dispatch-message.mjs";
 import {
   DEFAULT_REPO_ROOTS,
@@ -173,6 +173,7 @@ function printUsage(stdout) {
       "  preqstation-dispatcher setup auto PROJ=https://github.com/example/project",
       "  preqstation-dispatcher setup status",
       "  preqstation-dispatcher install [hermes|openclaw]",
+      "  preqstation-dispatcher install",
       "  preqstation-dispatcher sync hermes [--force]",
       "  preqstation-dispatcher status hermes",
       "",
@@ -237,39 +238,29 @@ async function handleSetup({ args, stdout, env }) {
   throw new Error("Usage: preqstation-dispatcher setup set PROJECT_KEY /absolute/path");
 }
 
-async function promptInstallTarget({ stdin, stdout }) {
-  stdout.write(
-    [
-      "Select install target:",
-      "  1) hermes   Install the bundled Hermes preq_dispatch skill",
-      "  2) openclaw Install the OpenClaw plugin package",
-      "Target [1-2]: ",
-    ].join("\n"),
-  );
-
-  const rl = readline.createInterface({
-    input: stdin,
-    output: stdout,
-    terminal: false,
-  });
-  try {
-    const answer = (await rl.question("")).trim().toLowerCase();
-    stdout.write("\n");
-    if (answer === "1" || answer === "hermes") {
-      return "hermes";
-    }
-    if (answer === "2" || answer === "openclaw") {
-      return "openclaw";
-    }
-    throw new Error("Install target must be hermes or openclaw");
-  } finally {
-    rl.close();
-  }
-}
-
-async function handleInstallCommand({ args, stdin, stdout, env }) {
+async function handleInstallCommand({
+  args,
+  stdin,
+  stdout,
+  env,
+  runInstallWizard = defaultRunInstallWizard,
+}) {
   const { options, positional } = parseOptions(args);
-  const target = positional[0] ?? (await promptInstallTarget({ stdin, stdout }));
+  const [target] = positional;
+
+  if (!target) {
+    stdout.write(
+      `${JSON.stringify(
+        await runInstallWizard({
+          inputStream: stdin,
+          outputStream: stdout,
+          env,
+          force: options.force === "true",
+        }),
+      )}\n`,
+    );
+    return;
+  }
 
   if (target === "hermes") {
     const result = await syncHermesSkill({
@@ -331,6 +322,7 @@ export async function runDispatcherCli({
   stderr = process.stderr,
   env = process.env,
   dispatchPreqRun = defaultDispatchPreqRun,
+  runInstallWizard = defaultRunInstallWizard,
 }) {
   const [command, ...args] = argv;
 
@@ -346,7 +338,7 @@ export async function runDispatcherCli({
     }
 
     if (command === "install") {
-      await handleInstallCommand({ args, stdin, stdout, env });
+      await handleInstallCommand({ args, stdin, stdout, env, runInstallWizard });
       return 0;
     }
 

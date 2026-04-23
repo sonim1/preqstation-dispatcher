@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { Readable } from "node:stream";
 
 import { runDispatcherCli } from "../src/cli/preqstation-dispatcher.mjs";
 
@@ -58,29 +57,42 @@ test("install hermes copies the bundled PREQ dispatch skill with provenance", as
   assert.equal(result.metadata_file, metadataFile);
 });
 
-test("install prompts for a target when no target is provided", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-install-prompt-"));
-  const hermesHome = path.join(tempDir, ".hermes");
+test("install runs the interactive wizard when no target is provided", async () => {
   const stdout = [];
+  let called = false;
 
   const exitCode = await runDispatcherCli({
     argv: ["install"],
-    stdin: Readable.from(["1\n"]),
     stdout: { write: (value) => stdout.push(value) },
     stderr: { write: () => {} },
-    env: { HERMES_HOME: hermesHome },
+    runInstallWizard: async () => {
+      called = true;
+      return {
+        ok: true,
+        action: "installed",
+        interactive: true,
+        install_targets: ["hermes"],
+        runtime_engines: ["codex"],
+        preqstation_server_url: "https://preq.example.com",
+        mcp_url: "https://preq.example.com/mcp",
+        results: [
+          { ok: true, target: "hermes", action: "installed" },
+          { ok: true, target: "codex", action: "mcp_installed" },
+        ],
+      };
+    },
     dispatchPreqRun: async () => {
       throw new Error("install must not dispatch");
     },
   });
 
-  const lines = stdout.join("").trim().split("\n");
-  const result = JSON.parse(lines.at(-1));
+  const result = JSON.parse(stdout.join(""));
 
   assert.equal(exitCode, 0);
-  assert.match(stdout.join(""), /Select install target/);
-  assert.equal(result.target, "hermes");
-  assert.equal(result.action, "installed");
+  assert.equal(called, true);
+  assert.deepEqual(result.install_targets, ["hermes"]);
+  assert.deepEqual(result.runtime_engines, ["codex"]);
+  assert.equal(result.mcp_url, "https://preq.example.com/mcp");
 });
 
 test("sync hermes refuses user-modified skills unless forced", async () => {

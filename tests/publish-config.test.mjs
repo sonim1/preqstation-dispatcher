@@ -55,6 +55,8 @@ test("publish workflow releases the package on main pushes", async () => {
   assert.match(workflow, /cancel-in-progress:\s+false/);
   assert.match(workflow, /id-token:\s+write/);
   assert.match(workflow, /github\.actor != 'github-actions\[bot\]'/);
+  assert.match(workflow, /Install dependencies/);
+  assert.match(workflow, /npm install/);
   assert.match(workflow, /npm version patch --no-git-tag-version/);
   assert.match(workflow, /writeFileSync\("VERSION", `\$\{pkg\.version\}\\n`\)/);
   assert.match(workflow, /git push/);

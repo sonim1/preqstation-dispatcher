@@ -114,7 +114,7 @@ preqstation-dispatcher setup auto PROJ=https://github.com/example/project
 preqstation-dispatcher setup status
 ```
 
-`install` without a target opens a small terminal picker for Hermes or OpenClaw. Automation should call `install hermes` or `install openclaw` directly.
+`install` without a target opens an interactive wizard that can install the OpenClaw adapter, the Hermes skill, and optional PREQ MCP registrations for Claude Code, Codex, and Gemini CLI. Automation should call `install hermes` or `install openclaw` directly.
 
 Hermes must have terminal/tool execution enabled. A chat-only Hermes profile cannot create worktrees or launch local worker CLIs.
 
@@ -137,6 +137,8 @@ preqstation-dispatcher status hermes
 ```
 
 If the local Hermes skill was edited, `sync hermes` refuses to overwrite it. Use `preqstation-dispatcher sync hermes --force` to back up the current `SKILL.md` and replace it with the bundled version.
+
+If you choose worker runtimes during the interactive `install` wizard, the wizard prompts for the current PREQSTATION server URL and registers `preqstation` over the remote `/mcp` endpoint for each selected runtime.
 
 `setup auto` scans local git repos under `PREQSTATION_REPO_ROOTS` when set, otherwise under `~/projects`, matches local git `origin` URLs against the provided repo URLs, and stores successful matches in `~/.preqstation-dispatch/projects.json`.
 
