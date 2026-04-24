@@ -31,10 +31,31 @@ test("installRuntimeMcpServers registers the PREQ MCP endpoint for selected runt
     env: { PATH: process.env.PATH },
     exec: async (command, args, options) => {
       calls.push({ command, args, options });
+      if (command === "claude" && args.join(" ") === "mcp get preqstation") {
+        const error = new Error('No MCP server found with name: "preqstation".');
+        error.stderr = 'No MCP server found with name: "preqstation".';
+        throw error;
+      }
+      if (command === "codex" && args.join(" ") === "mcp get preqstation") {
+        const error = new Error("Error: No MCP server named 'preqstation' found.");
+        error.stderr = "Error: No MCP server named 'preqstation' found.";
+        throw error;
+      }
+      if (command === "gemini" && args.join(" ") === "mcp list") {
+        return {
+          stdout: "Loaded cached credentials.\nNo MCP servers configured.\n",
+          stderr: "",
+        };
+      }
     },
   });
 
   assert.deepEqual(calls, [
+    {
+      command: "claude",
+      args: ["mcp", "get", "preqstation"],
+      options: { env: { PATH: process.env.PATH } },
+    },
     {
       command: "claude",
       args: [
@@ -51,6 +72,11 @@ test("installRuntimeMcpServers registers the PREQ MCP endpoint for selected runt
     },
     {
       command: "codex",
+      args: ["mcp", "get", "preqstation"],
+      options: { env: { PATH: process.env.PATH } },
+    },
+    {
+      command: "codex",
       args: [
         "mcp",
         "add",
@@ -58,6 +84,11 @@ test("installRuntimeMcpServers registers the PREQ MCP endpoint for selected runt
         "--url",
         "https://preq.example.com/mcp",
       ],
+      options: { env: { PATH: process.env.PATH } },
+    },
+    {
+      command: "gemini",
+      args: ["mcp", "list"],
       options: { env: { PATH: process.env.PATH } },
     },
     {
@@ -95,6 +126,59 @@ test("installRuntimeMcpServers registers the PREQ MCP endpoint for selected runt
       {
         target: "gemini-cli",
         action: "mcp_installed",
+        mcp_url: "https://preq.example.com/mcp",
+      },
+    ],
+  );
+});
+
+test("installRuntimeMcpServers skips runtimes that already point at the requested PREQ MCP URL", async () => {
+  const calls = [];
+
+  const results = await installRuntimeMcpServers({
+    runtimes: ["claude-code", "codex"],
+    serverUrl: "https://preq.example.com/",
+    env: { PATH: process.env.PATH },
+    exec: async (command, args, options) => {
+      calls.push({ command, args, options });
+      if (command === "claude" && args.join(" ") === "mcp get preqstation") {
+        return {
+          stdout: "preqstation:\n  URL: https://preq.example.com/mcp\n",
+          stderr: "",
+        };
+      }
+      if (command === "codex" && args.join(" ") === "mcp get preqstation") {
+        return {
+          stdout: "preqstation\n  url: https://preq.example.com/mcp\n",
+          stderr: "",
+        };
+      }
+      throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+    },
+  });
+
+  assert.deepEqual(
+    calls.map(({ command, args }) => ({ command, args })),
+    [
+      { command: "claude", args: ["mcp", "get", "preqstation"] },
+      { command: "codex", args: ["mcp", "get", "preqstation"] },
+    ],
+  );
+  assert.deepEqual(
+    results.map((result) => ({
+      target: result.target,
+      action: result.action,
+      mcp_url: result.mcp_url,
+    })),
+    [
+      {
+        target: "claude-code",
+        action: "mcp_already_configured",
+        mcp_url: "https://preq.example.com/mcp",
+      },
+      {
+        target: "codex",
+        action: "mcp_already_configured",
         mcp_url: "https://preq.example.com/mcp",
       },
     ],

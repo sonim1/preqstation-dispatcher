@@ -23,6 +23,7 @@
     "test": "node --test"
   },
   "dependencies": {
+    "@inquirer/core": "^10.3.2",
     "@inquirer/prompts": "^8.4.2"
   },
   "publishConfig": {

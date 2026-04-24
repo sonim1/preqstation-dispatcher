@@ -1,7 +1,9 @@
-import { checkbox, input } from "@inquirer/prompts";
+import { input } from "@inquirer/prompts";
 
 import { syncHermesSkill } from "./hermes-skill-installer.mjs";
 import { installOpenClawPlugin } from "./openclaw-installer.mjs";
+import multiSelectSubmitPrompt from "./prompts/multi-select-submit-prompt.mjs";
+import { installRuntimeWorkerSupport } from "./runtime-skill-installer.mjs";
 import {
   buildPreqstationMcpUrl,
   installRuntimeMcpServers,
@@ -25,19 +27,72 @@ const RUNTIME_CHOICES = [
   {
     name: "Claude Code",
     value: "claude-code",
-    description: "Register the PREQ remote MCP endpoint in Claude Code",
+    description: "Install the PREQ Claude plugin and register the remote MCP endpoint",
   },
   {
     name: "Codex",
     value: "codex",
-    description: "Register the PREQ remote MCP endpoint in Codex",
+    description: "Install the PREQ worker skill and register the remote MCP endpoint",
   },
   {
     name: "Gemini CLI",
     value: "gemini-cli",
-    description: "Register the PREQ remote MCP endpoint in Gemini CLI",
+    description: "Install the PREQ worker skill and register the remote MCP endpoint",
   },
 ];
+
+const ANSI = {
+  reset: "\u001B[0m",
+  bold: "\u001B[1m",
+  dim: "\u001B[2m",
+  cyan: "\u001B[36m",
+  green: "\u001B[32m",
+  yellow: "\u001B[33m",
+};
+
+function supportsColor({ outputStream, env = process.env }) {
+  if (!outputStream?.isTTY) {
+    return false;
+  }
+  if (env.NO_COLOR) {
+    return false;
+  }
+  if (env.FORCE_COLOR === "0") {
+    return false;
+  }
+  return true;
+}
+
+function paint(text, styles, enabled) {
+  if (!enabled) {
+    return text;
+  }
+  return `${styles.join("")}${text}${ANSI.reset}`;
+}
+
+function createCheckboxTheme({ outputStream, env = process.env }) {
+  const color = supportsColor({ outputStream, env });
+  const key = (text, tone) => paint(`[${text}]`, [ANSI.bold, tone], color);
+  const label = (text) => paint(text, [ANSI.dim], color);
+
+  return {
+    style: {
+      keysHelpTip() {
+        return [
+          label("Controls:"),
+          `${key("up/down", ANSI.yellow)} move`,
+          `${key("space", ANSI.cyan)} toggle`,
+          `${key("enter", ANSI.green)} toggle / submit`,
+        ].join("  ");
+      },
+    },
+  };
+}
+
+function requireSelection(label) {
+  return (selectedValues) =>
+    selectedValues.length > 0 ? true : `Select at least one ${label} before continuing.`;
+}
 
 function createPromptContext({ inputStream, outputStream }) {
   return {
@@ -49,6 +104,16 @@ function createPromptContext({ inputStream, outputStream }) {
 
 function writeProgress(outputStream, message) {
   outputStream.write(`${message}\n`);
+}
+
+function describeInstallAction(action) {
+  if (action === "updated") {
+    return "updated";
+  }
+  if (action === "already_current") {
+    return "already current";
+  }
+  return "installed";
 }
 
 function describeTarget(target) {
@@ -63,43 +128,65 @@ function describeTarget(target) {
 
 function describeRuntime(runtime) {
   if (runtime === "claude-code") {
-    return "Claude Code MCP";
+    return "Claude Code";
   }
   if (runtime === "codex") {
-    return "Codex MCP";
+    return "Codex";
   }
   if (runtime === "gemini-cli") {
-    return "Gemini CLI MCP";
+    return "Gemini CLI";
   }
   return runtime;
+}
+
+function describeRuntimeSupportAction(action, runtime) {
+  if (runtime === "claude-code") {
+    if (action === "already_current") {
+      return "plugin already current";
+    }
+    if (action === "updated") {
+      return "plugin updated";
+    }
+    return "plugin installed";
+  }
+
+  if (action === "already_current") {
+    return "skill already current";
+  }
+  if (action === "updated") {
+    return "skill updated";
+  }
+  return "skill installed";
 }
 
 export async function promptInstallPlan({
   inputStream = process.stdin,
   outputStream = process.stdout,
-  checkboxPrompt = checkbox,
+  env = process.env,
+  checkboxPrompt = multiSelectSubmitPrompt,
   inputPrompt = input,
 } = {}) {
   const context = createPromptContext({ inputStream, outputStream });
+  const checkboxTheme = createCheckboxTheme({ outputStream, env });
   const installTargets = await checkboxPrompt(
     {
-      message: "Choose dispatcher hosts to install",
+      message: "Choose dispatcher hosts to install (enter toggles items; Submit continues)",
       choices: INSTALL_TARGET_CHOICES,
+      validate: requireSelection("dispatcher host"),
+      theme: checkboxTheme,
     },
     context,
   );
 
   const runtimeEngines = await checkboxPrompt(
     {
-      message: "Choose worker runtimes for PREQ MCP setup",
+      message: "Choose worker runtimes to set up (enter toggles items; Submit continues)",
       choices: RUNTIME_CHOICES,
+      validate: requireSelection("worker runtime"),
+      theme: checkboxTheme,
     },
     context,
   );
-
-  if (installTargets.length === 0 && runtimeEngines.length === 0) {
-    throw new Error("Select at least one dispatcher host or worker runtime.");
-  }
 
   let preqstationServerUrl = null;
   if (runtimeEngines.length > 0) {
@@ -132,11 +219,13 @@ export async function runInstallWizard({
   promptInstallPlanFn = promptInstallPlan,
   syncHermesSkillFn = syncHermesSkill,
   installOpenClawPluginFn = installOpenClawPlugin,
+  installRuntimeWorkerSupportFn = installRuntimeWorkerSupport,
   installRuntimeMcpServersFn = installRuntimeMcpServers,
 } = {}) {
   const plan = await promptInstallPlanFn({
     inputStream,
     outputStream,
+    env,
   });
   const results = [];
 
@@ -154,7 +243,7 @@ export async function runInstallWizard({
       results.push(result);
       writeProgress(
         outputStream,
-        `✔ ${describeTarget(target)} ${result.action === "updated" ? "updated" : "installed"}.`,
+        `✔ ${describeTarget(target)} ${describeInstallAction(result.action)}.`,
       );
       continue;
     }
@@ -164,7 +253,7 @@ export async function runInstallWizard({
       results.push(result);
       writeProgress(
         outputStream,
-        `✔ ${describeTarget(target)} ${result.action === "updated" ? "updated" : "installed"}.`,
+        `✔ ${describeTarget(target)} ${describeInstallAction(result.action)}.`,
       );
       continue;
     }
@@ -174,14 +263,32 @@ export async function runInstallWizard({
 
   if (plan.runtimeEngines.length > 0) {
     for (const runtime of plan.runtimeEngines) {
-      writeProgress(outputStream, `Registering ${describeRuntime(runtime)}...`);
+      writeProgress(outputStream, `Installing ${describeRuntime(runtime)} support...`);
+      const runtimeSupportResults = await installRuntimeWorkerSupportFn({
+        env,
+        runtimes: [runtime],
+      });
+      results.push(...runtimeSupportResults);
+      const runtimeSupportAction = runtimeSupportResults[0]?.action;
+      writeProgress(
+        outputStream,
+        `✔ ${describeRuntime(runtime)} ${describeRuntimeSupportAction(runtimeSupportAction, runtime)}.`,
+      );
+
+      writeProgress(outputStream, `Registering ${describeRuntime(runtime)} MCP...`);
       const runtimeResults = await installRuntimeMcpServersFn({
         env,
         runtimes: [runtime],
         serverUrl: plan.preqstationServerUrl,
       });
       results.push(...runtimeResults);
-      writeProgress(outputStream, `✔ ${describeRuntime(runtime)} registered.`);
+      const runtimeAction = runtimeResults[0]?.action;
+      writeProgress(
+        outputStream,
+        `✔ ${describeRuntime(runtime)} MCP ${
+          runtimeAction === "mcp_already_configured" ? "already configured" : "registered"
+        }.`,
+      );
     }
   }
 
