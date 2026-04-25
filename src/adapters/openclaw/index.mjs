@@ -33,6 +33,28 @@ function resolveWorktreeRoot(api) {
     : path.join(os.homedir(), ".openclaw-preq-worktrees");
 }
 
+function formatDispatchFailureText(parsed, message) {
+  const target = parsed.taskKey ?? parsed.projectKey;
+  const lines = [`failed to dispatch ${target} via ${parsed.engine}`, `Reason: ${message}`];
+
+  if (/project path|project key|mapping|\/preqsetup|repo root|no local project/i.test(message)) {
+    lines.push(
+      "Next: fix the dispatcher project mapping on this host with /preqsetup status or /preqsetup auto, then resend the PREQ dispatch.",
+    );
+    return lines.join("\n");
+  }
+
+  if (/github|gh auth|pull request|auto[_ -]?pr/i.test(message)) {
+    lines.push(
+      "Next: configure GitHub access on the coding agent (`gh auth login` or GitHub MCP), then resend the PREQ dispatch.",
+    );
+    return lines.join("\n");
+  }
+
+  lines.push("Next: fix the dispatcher error on this host, then resend the PREQ dispatch.");
+  return lines.join("\n");
+}
+
 function trackDetachedDispatch({ api, event, ctx, parsed, prepared, launch }) {
   const taskFlowApi = resolveTaskFlowApi(api.runtime);
   if (!taskFlowApi || !ctx.sessionKey) {
@@ -140,7 +162,7 @@ export function createBeforeDispatchHandler(api, overrides = {}) {
       });
       return {
         handled: true,
-        text: `failed to dispatch ${parsed.taskKey ?? parsed.projectKey} via ${parsed.engine} - ${message}`,
+        text: formatDispatchFailureText(parsed, message),
       };
     }
   };

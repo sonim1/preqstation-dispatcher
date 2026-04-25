@@ -115,3 +115,37 @@ test("before_dispatch ignores unrelated messages", async () => {
     undefined,
   );
 });
+
+test("before_dispatch returns an actionable Telegram reply when dispatch fails", async () => {
+  const handler = createBeforeDispatchHandler(
+    {
+      runtime: {},
+      pluginConfig: {},
+      rootDir: "/tmp/preqstation-dispatcher",
+      logger: { info() {}, error() {} },
+    },
+    {
+      resolveProjectCwd: async () => "/tmp/project",
+      prepareWorktree: async () => {
+        throw new Error("GitHub access missing on the coding agent: run gh auth login before auto PR.");
+      },
+    },
+  );
+
+  const result = await handler(
+    {
+      content: "preqstation implement PROJ-327 using codex",
+      channel: "telegram",
+    },
+    {
+      sessionKey: "agent:main",
+      accountId: "telegram:default",
+      conversationId: "chat-1",
+    },
+  );
+
+  assert.equal(result.handled, true);
+  assert.match(result.text, /Reason: GitHub access missing on the coding agent/);
+  assert.match(result.text, /gh auth login/);
+  assert.match(result.text, /resend the PREQ dispatch/);
+});
