@@ -6,7 +6,15 @@ import path from "node:path";
 
 import { runDispatcherCli } from "../src/cli/preqstation-dispatcher.mjs";
 
+const packageJsonPath = new URL("../package.json", import.meta.url);
+
+async function readCurrentPackageVersion() {
+  const pkg = JSON.parse(await fs.readFile(packageJsonPath, "utf8"));
+  return pkg.version;
+}
+
 test("install openclaw runs the OpenClaw plugin install command", async () => {
+  const currentPackageVersion = await readCurrentPackageVersion();
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-openclaw-install-"));
   const binDir = path.join(tempDir, "bin");
   const logFile = path.join(tempDir, "openclaw-args.log");
@@ -54,11 +62,12 @@ test("install openclaw runs the OpenClaw plugin install command", async () => {
     package: "@sonim1/preqstation-dispatcher",
     plugin_id: "preqstation-dispatcher",
     restart_command: "openclaw gateway restart",
-    package_version: "0.1.16",
+    package_version: currentPackageVersion,
   });
 });
 
 test("install openclaw updates the plugin when it already exists", async () => {
+  const currentPackageVersion = await readCurrentPackageVersion();
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-openclaw-update-"));
   const binDir = path.join(tempDir, "bin");
   const logFile = path.join(tempDir, "openclaw-args.log");
@@ -112,11 +121,12 @@ test("install openclaw updates the plugin when it already exists", async () => {
     plugin_id: "preqstation-dispatcher",
     restart_command: "openclaw gateway restart",
     installed_version: "0.1.15",
-    package_version: "0.1.16",
+    package_version: currentPackageVersion,
   });
 });
 
 test("install openclaw reports already_current when the installed plugin version matches the package", async () => {
+  const currentPackageVersion = await readCurrentPackageVersion();
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-openclaw-current-"));
   const binDir = path.join(tempDir, "bin");
   const logFile = path.join(tempDir, "openclaw-args.log");
@@ -131,8 +141,8 @@ test("install openclaw reports already_current when the installed plugin version
       '  cat <<\'EOF\'',
       "PREQSTATION OpenClaw Dispatch",
       "id: preqstation-dispatcher",
-      "Version: 0.1.16",
-      "Recorded version: 0.1.16",
+      `Version: ${currentPackageVersion}`,
+      `Recorded version: ${currentPackageVersion}`,
       "EOF",
       "  exit 0",
       "fi",
@@ -166,7 +176,7 @@ test("install openclaw reports already_current when the installed plugin version
     package: "@sonim1/preqstation-dispatcher",
     plugin_id: "preqstation-dispatcher",
     restart_command: "openclaw gateway restart",
-    installed_version: "0.1.16",
-    package_version: "0.1.16",
+    installed_version: currentPackageVersion,
+    package_version: currentPackageVersion,
   });
 });
