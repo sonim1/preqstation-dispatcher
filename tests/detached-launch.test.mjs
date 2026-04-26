@@ -1,22 +1,55 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildDetachedLaunchPlan } from "../src/detached-launch.mjs";
+import {
+  buildDetachedLaunchPlan,
+  buildDetachedProcessEnv,
+} from "../src/detached-launch.mjs";
 import { createBeforeDispatchHandler } from "../index.mjs";
 
 test("builds a detached codex launch plan that reads the prompt file", () => {
   const plan = buildDetachedLaunchPlan({
     cwd: "/tmp/worktree/proj/task-proj-327-browser-notification-chuga",
     engine: "codex",
+    platform: "darwin",
   });
 
   assert.equal(plan.command, "sh");
   assert.deepEqual(plan.logFile, "/tmp/worktree/proj/task-proj-327-browser-notification-chuga/.preqstation-dispatch/codex.log");
   assert.deepEqual(plan.pidFile, "/tmp/worktree/proj/task-proj-327-browser-notification-chuga/.preqstation-dispatch/codex.pid");
-  assert.match(plan.script, /codex exec --dangerously-bypass-approvals-and-sandbox/);
+  assert.match(plan.script, /env -u LC_ALL -u LANG -u LC_CTYPE LANG=en_US.UTF-8 LC_CTYPE=en_US.UTF-8 codex exec --dangerously-bypass-approvals-and-sandbox/);
   assert.match(plan.script, /Read and execute instructions from \.\/\.preqstation-prompt\.txt/);
+  assert.doesNotMatch(plan.script, /C\.UTF-8/);
+  assert.doesNotMatch(plan.script, /LC_CTYPE=UTF-8/);
   assert.doesNotMatch(plan.script, /& &&/);
   assert.match(plan.script, /\( nohup .*echo \$! >/);
+});
+
+test("sanitizes detached process locale for macOS", () => {
+  const env = buildDetachedProcessEnv(
+    {
+      PATH: "/usr/bin:/bin",
+      LANG: "C.UTF-8",
+      LC_ALL: "C.UTF-8",
+      LC_CTYPE: "UTF-8",
+    },
+    "darwin",
+  );
+
+  assert.equal(env.PATH, "/usr/bin:/bin");
+  assert.equal(env.LANG, "en_US.UTF-8");
+  assert.equal(env.LC_CTYPE, "en_US.UTF-8");
+  assert.equal("LC_ALL" in env, false);
+});
+
+test("keeps C.UTF-8 as the detached locale on non-macOS hosts", () => {
+  const plan = buildDetachedLaunchPlan({
+    cwd: "/tmp/worktree/proj/task-proj-327-browser-notification-chuga",
+    engine: "codex",
+    platform: "linux",
+  });
+
+  assert.match(plan.script, /env -u LC_ALL -u LANG -u LC_CTYPE LANG=C.UTF-8 LC_CTYPE=C.UTF-8 codex exec --dangerously-bypass-approvals-and-sandbox/);
 });
 
 test("before_dispatch handles matched preq messages and parks task flow in waiting", async () => {
