@@ -27,18 +27,20 @@ Use this skill when a trusted Telegram dispatch message starts with `/preq_dispa
 ## Procedure
 
 1. Parse the structured PREQ fields from the Telegram message.
-2. Validate that `project_key`, `objective`, and `engine` are present.
-3. For task objectives such as `plan`, `implement`, `review`, and `qa`, require `task_key`.
-4. Run `preqstation-dispatcher run` with only the parsed fields:
+2. Validate that `objective` and `engine` are present.
+3. For task objectives such as `plan`, `implement`, `review`, and `qa`, require `task_key`. Infer `project_key` from `task_key` when it is omitted.
+4. For project-level objectives such as `insight`, require `project_key`.
+5. Run `preqstation-dispatcher run` with only the parsed fields:
 
 ```bash
 preqstation-dispatcher run \
-  --project-key "<project_key>" \
-  --task-key "<task_key>" \
   --objective "<objective>" \
   --engine "<engine>" \
+  --task-key "<task_key>" \
   --branch-name "<branch_name>"
 ```
+
+Include `--project-key` only when it is present or when `task_key` is unavailable.
 
 For `objective=insight`, omit `--task-key`.
 

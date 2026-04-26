@@ -10,7 +10,6 @@ test("parses a Hermes task dispatch payload into a dispatcher request", () => {
     dispatch: {
       request_id: "req-123",
       objective: "implement",
-      project_key: "proj",
       task_key: "proj-123",
       engine: "codex",
       branch_name: "task/proj-123-example",
@@ -28,6 +27,28 @@ test("parses a Hermes task dispatch payload into a dispatcher request", () => {
     insightPromptB64: null,
     rawMessage:
       'preqstation implement PROJ-123 using codex branch_name="task/proj-123-example"',
+  });
+});
+
+test("infers project key from task key when Hermes task payload omits project_key", () => {
+  const parsed = parseHermesDispatchPayload({
+    event_type: "preq.dispatch.requested",
+    dispatch: {
+      objective: "review",
+      task_key: "proj-456",
+      engine: "codex",
+    },
+  });
+
+  assert.deepEqual(parsed, {
+    engine: "codex",
+    taskKey: "PROJ-456",
+    projectKey: "PROJ",
+    objective: "review",
+    branchName: null,
+    askHint: null,
+    insightPromptB64: null,
+    rawMessage: "preqstation review PROJ-456 using codex",
   });
 });
 
@@ -83,5 +104,21 @@ test("rejects task objectives without a task key", () => {
         },
       }),
     /Task key is required for implement dispatch/,
+  );
+});
+
+test("rejects mismatched project and task keys when both are provided", () => {
+  assert.throws(
+    () =>
+      parseHermesDispatchPayload({
+        event_type: "preq.dispatch.requested",
+        dispatch: {
+          objective: "implement",
+          project_key: "MISS",
+          task_key: "PROJ-123",
+          engine: "codex",
+        },
+      }),
+    /Task key PROJ-123 does not match project key MISS/,
   );
 });

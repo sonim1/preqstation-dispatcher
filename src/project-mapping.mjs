@@ -10,12 +10,58 @@ const EXPLICIT_PATH_PATTERNS = [
   /\bcwd=(\/[^\s"']+)/u,
   /\bpath=(\/[^\s"']+)/u,
 ];
-export const DEFAULT_REPO_ROOTS = [path.join(os.homedir(), "projects")];
-export const DEFAULT_SHARED_MAPPING_PATH = path.join(
-  os.homedir(),
-  ".preqstation-dispatch",
-  "projects.json",
-);
+
+function resolveOsUserHome() {
+  try {
+    const userHome = os.userInfo().homedir;
+    if (typeof userHome === "string" && userHome.trim()) {
+      return userHome.trim();
+    }
+  } catch {}
+
+  return os.homedir();
+}
+
+function extractHermesUserHome(candidatePath) {
+  const value = typeof candidatePath === "string" ? candidatePath.trim() : "";
+  if (!value) {
+    return null;
+  }
+
+  const normalized = path.resolve(value);
+  const profileMarker = `${path.sep}.hermes${path.sep}profiles${path.sep}`;
+  const profileIndex = normalized.indexOf(profileMarker);
+  if (profileIndex > 0) {
+    return normalized.slice(0, profileIndex);
+  }
+
+  if (normalized.endsWith(`${path.sep}.hermes`)) {
+    return path.dirname(normalized);
+  }
+
+  return null;
+}
+
+// Hermes profile subprocesses override HOME to ~/.hermes/profiles/<name>/home.
+// Use the owning user's home for dispatcher defaults so setup/run share one mapping file.
+export function resolveDefaultUserHome(env = process.env) {
+  return (
+    extractHermesUserHome(env?.HERMES_HOME) ??
+    extractHermesUserHome(env?.HOME) ??
+    resolveOsUserHome()
+  );
+}
+
+export function getDefaultRepoRoots(env = process.env) {
+  return [path.join(resolveDefaultUserHome(env), "projects")];
+}
+
+export function getDefaultSharedMappingPath(env = process.env) {
+  return path.join(resolveDefaultUserHome(env), ".preqstation-dispatch", "projects.json");
+}
+
+export const DEFAULT_REPO_ROOTS = getDefaultRepoRoots();
+export const DEFAULT_SHARED_MAPPING_PATH = getDefaultSharedMappingPath();
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";

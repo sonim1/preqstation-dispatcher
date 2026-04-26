@@ -6,7 +6,7 @@ import {
   dispatchPreqRun,
 } from "../../core/dispatch-runtime.mjs";
 import { parseDispatchMessage } from "../../parse-dispatch-message.mjs";
-import { DEFAULT_SHARED_MAPPING_PATH } from "../../project-mapping.mjs";
+import { getDefaultSharedMappingPath } from "../../project-mapping.mjs";
 import { createSetupCommandHandler } from "../../setup-command.mjs";
 
 function resolveTaskFlowApi(runtime) {
@@ -132,7 +132,7 @@ export function createBeforeDispatchHandler(api, overrides = {}) {
         rawMessage: parsed.rawMessage,
         parsed,
         configuredProjects: api.pluginConfig?.projects,
-        sharedMappingPath: DEFAULT_SHARED_MAPPING_PATH,
+        sharedMappingPath: getDefaultSharedMappingPath(),
         memoryPath: resolveMemoryPath(api),
         worktreeRoot: resolveWorktreeRoot(api),
         dependencies: {

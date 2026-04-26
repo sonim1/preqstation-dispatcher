@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 
 import { dispatchPreqRun as defaultDispatchPreqRun } from "../core/dispatch-runtime.mjs";
@@ -7,8 +6,9 @@ import { parseHermesDispatchPayload } from "../adapters/hermes/payload.mjs";
 import { runInstallWizard as defaultRunInstallWizard } from "../install-wizard.mjs";
 import { parseDispatchMessage } from "../parse-dispatch-message.mjs";
 import {
-  DEFAULT_REPO_ROOTS,
-  DEFAULT_SHARED_MAPPING_PATH,
+  getDefaultRepoRoots,
+  getDefaultSharedMappingPath,
+  resolveDefaultUserHome,
   matchProjectsToRepoRoots,
   readRepoRoots,
 } from "../project-mapping.mjs";
@@ -20,15 +20,18 @@ import {
 import { installOpenClawPlugin } from "../openclaw-installer.mjs";
 
 function getDispatchHome(env) {
-  return env.PREQSTATION_DISPATCH_HOME || path.join(os.homedir(), ".preqstation-dispatch");
+  return (
+    env.PREQSTATION_DISPATCH_HOME ||
+    path.join(resolveDefaultUserHome(env), ".preqstation-dispatch")
+  );
 }
 
 function getProjectsFile(env) {
-  return env.PREQSTATION_PROJECTS_FILE || DEFAULT_SHARED_MAPPING_PATH;
+  return env.PREQSTATION_PROJECTS_FILE || getDefaultSharedMappingPath(env);
 }
 
 function getRepoRoots(env) {
-  return readRepoRoots(env.PREQSTATION_REPO_ROOTS || DEFAULT_REPO_ROOTS);
+  return readRepoRoots(env.PREQSTATION_REPO_ROOTS || getDefaultRepoRoots(env));
 }
 
 function getWorktreeRoot(env) {

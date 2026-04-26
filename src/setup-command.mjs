@@ -1,7 +1,7 @@
 import { ensureProjectCheckout } from "./worktree-runtime.mjs";
 import {
-  DEFAULT_REPO_ROOTS,
-  DEFAULT_SHARED_MAPPING_PATH,
+  getDefaultRepoRoots,
+  getDefaultSharedMappingPath,
   loadDispatchProjectMappings,
   matchProjectsToRepoRoots,
   readRepoRoots,
@@ -154,12 +154,12 @@ export function createSetupCommandHandler(api, options = {}) {
     const projects = { ...(pluginConfig.projects ?? {}) };
     const parsed = parseSetupArgs(ctx.args);
     const sharedMappingPath =
-      options.sharedMappingPath ?? DEFAULT_SHARED_MAPPING_PATH;
+      options.sharedMappingPath ?? getDefaultSharedMappingPath();
     const repoRoots = readRepoRoots(
       options.repoRoots ??
         pluginConfig.repoRoots ??
         process.env.PREQSTATION_REPO_ROOTS ??
-        DEFAULT_REPO_ROOTS,
+        getDefaultRepoRoots(),
     );
 
     if (parsed.action === "status") {

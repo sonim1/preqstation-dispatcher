@@ -143,6 +143,131 @@ test("setup auto maps discovered repositories into the shared mapping file", asy
   });
 });
 
+test("setup set uses the user's shared mapping path outside Hermes profile HOME", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-dispatcher-hermes-home-set-"),
+  );
+  const userHome = path.join(tempDir, "user-home");
+  const hermesHome = path.join(userHome, ".hermes", "profiles", "preq-coder");
+  const hermesSubprocessHome = path.join(hermesHome, "home");
+  const projectPath = path.join(tempDir, "project");
+  const mappingPath = path.join(userHome, ".preqstation-dispatch", "projects.json");
+
+  await fs.mkdir(hermesSubprocessHome, { recursive: true });
+  await fs.mkdir(projectPath, { recursive: true });
+
+  const exitCode = await runDispatcherCli({
+    argv: ["setup", "set", "proj", projectPath],
+    stdout: { write: () => {} },
+    stderr: { write: () => {} },
+    env: {
+      HOME: hermesSubprocessHome,
+      HERMES_HOME: hermesHome,
+    },
+    dispatchPreqRun: async () => {
+      throw new Error("setup must not dispatch");
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(JSON.parse(await fs.readFile(mappingPath, "utf8")), {
+    projects: {
+      PROJ: projectPath,
+    },
+  });
+});
+
+test("setup auto scans the user's projects root outside Hermes profile HOME", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-dispatcher-hermes-home-auto-"),
+  );
+  const userHome = path.join(tempDir, "user-home");
+  const hermesHome = path.join(userHome, ".hermes", "profiles", "preq-coder");
+  const hermesSubprocessHome = path.join(hermesHome, "home");
+  const repoRoot = path.join(userHome, "projects");
+  const projectPath = path.join(repoRoot, "projects-manager");
+  const mappingPath = path.join(userHome, ".preqstation-dispatch", "projects.json");
+
+  await fs.mkdir(hermesSubprocessHome, { recursive: true });
+  await fs.mkdir(projectPath, { recursive: true });
+  execFileSync("git", ["init"], { cwd: projectPath, stdio: "ignore" });
+  execFileSync(
+    "git",
+    ["remote", "add", "origin", "git@github.com:sonim1/projects-manager.git"],
+    { cwd: projectPath, stdio: "ignore" },
+  );
+
+  const stdout = [];
+  const exitCode = await runDispatcherCli({
+    argv: ["setup", "auto", "PROJ=https://github.com/sonim1/projects-manager"],
+    stdout: { write: (value) => stdout.push(value) },
+    stderr: { write: () => {} },
+    env: {
+      HOME: hermesSubprocessHome,
+      HERMES_HOME: hermesHome,
+    },
+    dispatchPreqRun: async () => {
+      throw new Error("setup must not dispatch");
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(JSON.parse(await fs.readFile(mappingPath, "utf8")), {
+    projects: {
+      PROJ: projectPath,
+    },
+  });
+  assert.deepEqual(JSON.parse(stdout.join("")).repo_roots, [repoRoot]);
+});
+
+test("run-json uses the user's shared mapping path outside Hermes profile HOME", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-dispatcher-hermes-home-run-"),
+  );
+  const userHome = path.join(tempDir, "user-home");
+  const hermesHome = path.join(userHome, ".hermes", "profiles", "preq-coder");
+  const hermesSubprocessHome = path.join(hermesHome, "home");
+  const mappingPath = path.join(userHome, ".preqstation-dispatch", "projects.json");
+  const payloadPath = path.join(tempDir, "payload.json");
+
+  await fs.mkdir(hermesSubprocessHome, { recursive: true });
+  await fs.writeFile(
+    payloadPath,
+    JSON.stringify({
+      event_type: "preq.dispatch.requested",
+      dispatch: {
+        objective: "implement",
+        project_key: "PROJ",
+        task_key: "PROJ-123",
+        engine: "codex",
+      },
+    }),
+  );
+
+  const calls = [];
+  const exitCode = await runDispatcherCli({
+    argv: ["run-json", "--payload", payloadPath],
+    stdout: { write: () => {} },
+    stderr: { write: () => {} },
+    env: {
+      HOME: hermesSubprocessHome,
+      HERMES_HOME: hermesHome,
+      PREQSTATION_WORKTREE_ROOT: path.join(tempDir, "worktrees"),
+    },
+    dispatchPreqRun: async (params) => {
+      calls.push(params);
+      return {
+        prepared: { cwd: "/tmp/worktree", branchName: "preqstation/proj/task-proj-123" },
+        launch: { pid: 4242, pidFile: "/tmp/worktree/pid", logFile: "/tmp/worktree/log" },
+      };
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].sharedMappingPath, mappingPath);
+});
+
 test("run rejects missing task keys for task objectives before dispatching", async () => {
   const stderr = [];
   const exitCode = await runDispatcherCli({

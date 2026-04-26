@@ -94,7 +94,6 @@ For Bot API based receivers, enable Bot-to-Bot Communication Mode for the Hermes
 
 ```text
 /preq_dispatch@PreqHermesBot
-project_key=PROJ
 task_key=PROJ-123
 objective=implement
 engine=codex
@@ -113,6 +112,8 @@ insight_prompt_b64=BASE64URL_PROMPT
 ```
 
 The message should contain structured fields only. Do not send an arbitrary shell command for Hermes to execute.
+For task dispatches, `project_key` is optional because the dispatcher can infer it from `task_key`.
+For project-level dispatches such as `insight`, `project_key` remains required.
 
 ## Hermes Profile Instruction
 
@@ -137,13 +138,14 @@ Never invent local project paths.
 Launch the dispatcher with the parsed fields:
 
 preqstation-dispatcher run \
-  --project-key "<project_key>" \
-  --task-key "<task_key>" \
   --objective "<objective>" \
   --engine "<engine>" \
+  --task-key "<task_key>" \
   --branch-name "<branch_name>"
 
-For project-level insight events, omit --task-key.
+Include --project-key only when it is present or when no task_key is available.
+
+For project-level insight events, omit --task-key and pass --project-key.
 
 Report only whether the dispatcher launched successfully.
 ```

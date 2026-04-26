@@ -31,6 +31,10 @@ function normalizeTaskKey(value) {
   return taskKey;
 }
 
+function inferProjectKey(taskKey) {
+  return taskKey ? taskKey.split("-", 1)[0] ?? null : null;
+}
+
 function normalizeObjective(value) {
   const objective = normalizeString(value).toLowerCase();
   if (!objective) {
@@ -78,8 +82,11 @@ export function parseHermesDispatchPayload(payload) {
   }
 
   const engine = normalizeEngine(dispatch.engine);
-  const projectKey = normalizeProjectKey(dispatch.project_key ?? dispatch.projectKey);
   const taskKey = normalizeTaskKey(dispatch.task_key ?? dispatch.taskKey);
+  const projectKeyInput = normalizeString(dispatch.project_key ?? dispatch.projectKey);
+  const projectKey = projectKeyInput
+    ? normalizeProjectKey(projectKeyInput)
+    : inferProjectKey(taskKey);
   const objective = normalizeObjective(dispatch.objective);
   const branchName = normalizeString(dispatch.branch_name ?? dispatch.branchName) || null;
   const askHint = normalizeString(dispatch.ask_hint ?? dispatch.askHint) || null;
@@ -89,8 +96,14 @@ export function parseHermesDispatchPayload(payload) {
   if (TASK_OBJECTIVES.has(objective) && !taskKey) {
     throw new Error(`Task key is required for ${objective} dispatch`);
   }
+  if (!projectKey) {
+    throw new Error("Project key is required for Hermes dispatch");
+  }
   if (!taskKey && !PROJECT_OBJECTIVES.has(objective)) {
     throw new Error(`Project-level ${objective} dispatch is not supported`);
+  }
+  if (taskKey && projectKey !== inferProjectKey(taskKey)) {
+    throw new Error(`Task key ${taskKey} does not match project key ${projectKey}`);
   }
 
   return {
