@@ -28,6 +28,23 @@ async function createRepo() {
   return tempDir;
 }
 
+async function createRemoteBackedRepo() {
+  const seedDir = await createRepo();
+  const remoteDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-dispatcher-remote-"),
+  );
+  const cloneDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-dispatcher-clone-"),
+  );
+
+  git(["init", "--bare"], remoteDir);
+  git(["remote", "add", "origin", remoteDir], seedDir);
+  git(["push", "-u", "origin", "main"], seedDir);
+  execFileSync("git", ["clone", remoteDir, cloneDir], { stdio: "pipe" });
+
+  return { seedDir, remoteDir, cloneDir };
+}
+
 test("normalizes missing branch names to a project-scoped task branch", () => {
   assert.equal(
     normalizeBranchName({ projectKey: "PROJ", taskKey: "PROJ-327", branchName: null }),
@@ -76,6 +93,40 @@ test("creates an auxiliary worktree and symlinks runtime env files", async () =>
     await fs.readlink(path.join(prepared.cwd, ".env.local")),
     path.join(repoDir, ".env.local"),
   );
+});
+
+test("creates a new worktree branch from the fetched origin main state", async () => {
+  const { seedDir, cloneDir } = await createRemoteBackedRepo();
+  const worktreeRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "preqstation-dispatcher-worktrees-"),
+  );
+
+  await fs.writeFile(path.join(seedDir, "fresh.txt"), "fresh\n");
+  git(["add", "fresh.txt"], seedDir);
+  git(["commit", "-m", "fresh"], seedDir);
+  git(["push", "origin", "main"], seedDir);
+
+  const localHeadBefore = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: cloneDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+
+  const prepared = await prepareWorktree({
+    projectCwd: cloneDir,
+    projectKey: "PROJ",
+    branchName: "task/proj-remote-base",
+    worktreeRoot,
+  });
+
+  const worktreeHead = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: prepared.cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+
+  assert.notEqual(worktreeHead, localHeadBefore);
+  assert.equal(await fs.readFile(path.join(prepared.cwd, "fresh.txt"), "utf8"), "fresh\n");
 });
 
 test("fails with a clear error when the mapped project path does not exist", async () => {

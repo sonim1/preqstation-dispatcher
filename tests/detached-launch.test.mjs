@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  assertDetachedWorkerMcpReady,
   buildDetachedLaunchPlan,
   buildDetachedProcessEnv,
+  resolveWorkerHome,
 } from "../src/detached-launch.mjs";
 import { createBeforeDispatchHandler } from "../index.mjs";
 
@@ -42,6 +44,47 @@ test("sanitizes detached process locale for macOS", () => {
   assert.equal("LC_ALL" in env, false);
 });
 
+test("uses the owning user home for detached runs launched from Hermes profiles", () => {
+  const env = buildDetachedProcessEnv(
+    {
+      HOME: "/Users/kendrick/.hermes/profiles/preq-coder/home",
+      HERMES_HOME: "/Users/kendrick/.hermes/profiles/preq-coder",
+    },
+    "darwin",
+  );
+
+  assert.equal(env.HOME, "/Users/kendrick");
+  assert.equal(env.LANG, "en_US.UTF-8");
+  assert.equal(env.LC_CTYPE, "en_US.UTF-8");
+});
+
+test("uses a shared PREQ worker home when configured", () => {
+  assert.equal(
+    resolveWorkerHome(
+      {
+        HOME: "/Users/kendrick/.hermes/profiles/preq-coder/home",
+        PREQSTATION_WORKER_HOME: "/Users/kendrick/.preq-workers/shared",
+      },
+      "codex",
+    ),
+    "/Users/kendrick/.preq-workers/shared",
+  );
+});
+
+test("uses runtime-specific worker homes before the shared worker home", () => {
+  assert.equal(
+    resolveWorkerHome(
+      {
+        HOME: "/Users/kendrick/.hermes/profiles/preq-coder/home",
+        PREQSTATION_WORKER_HOME: "/Users/kendrick/.preq-workers/shared",
+        PREQSTATION_CODEX_HOME: "/Users/kendrick/.preq-workers/codex",
+      },
+      "codex",
+    ),
+    "/Users/kendrick/.preq-workers/codex",
+  );
+});
+
 test("keeps C.UTF-8 as the detached locale on non-macOS hosts", () => {
   const plan = buildDetachedLaunchPlan({
     cwd: "/tmp/worktree/proj/task-proj-327-browser-notification-chuga",
@@ -50,6 +93,58 @@ test("keeps C.UTF-8 as the detached locale on non-macOS hosts", () => {
   });
 
   assert.match(plan.script, /env -u LC_ALL -u LANG -u LC_CTYPE LANG=C.UTF-8 LC_CTYPE=C.UTF-8 codex exec --dangerously-bypass-approvals-and-sandbox/);
+});
+
+test("codex detached preflight rejects preqstation MCP sessions that are not logged in", () => {
+  assert.throws(
+    () =>
+      assertDetachedWorkerMcpReady({
+        engine: "codex",
+        env: { HOME: "/Users/kendrick/.hermes/profiles/preq-coder/home" },
+        exec: () => `
+Name         Url                        Bearer Token Env Var  Status   Auth
+preqstation  https://pm.sonim1.com/mcp  -                     enabled  Not logged in
+`,
+      }),
+    /PREQSTATION_CODEX_HOME or PREQSTATION_WORKER_HOME/,
+  );
+});
+
+test("codex detached preflight accepts authenticated preqstation MCP sessions", () => {
+  assert.doesNotThrow(() =>
+    assertDetachedWorkerMcpReady({
+      engine: "codex",
+      env: { HOME: "/Users/kendrick" },
+      exec: () => `
+Name         Url                        Bearer Token Env Var  Status   Auth
+preqstation  https://pm.sonim1.com/mcp  -                     enabled  OAuth
+`,
+    }),
+  );
+});
+
+test("claude detached preflight rejects preqstation MCP sessions that still need auth", () => {
+  assert.throws(
+    () =>
+      assertDetachedWorkerMcpReady({
+        engine: "claude-code",
+        env: { HOME: "/Users/kendrick/.preq-workers/claude" },
+        exec: () => "preqstation: https://pm.sonim1.com/mcp (HTTP) - ! Needs authentication\n",
+      }),
+    /PREQSTATION_CLAUDE_HOME or PREQSTATION_WORKER_HOME/,
+  );
+});
+
+test("gemini detached preflight rejects disconnected preqstation MCP sessions", () => {
+  assert.throws(
+    () =>
+      assertDetachedWorkerMcpReady({
+        engine: "gemini-cli",
+        env: { HOME: "/Users/kendrick/.preq-workers/gemini" },
+        exec: () => "✗ preqstation: https://pm.sonim1.com/mcp (http) - Disconnected\n",
+      }),
+    /PREQSTATION_GEMINI_HOME or PREQSTATION_WORKER_HOME/,
+  );
 });
 
 test("before_dispatch handles matched preq messages and parks task flow in waiting", async () => {

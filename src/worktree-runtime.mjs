@@ -29,6 +29,53 @@ function branchExists(projectCwd, branchName) {
   }
 }
 
+function remoteExists(projectCwd, remoteName = "origin") {
+  try {
+    execFileSync("git", ["remote", "get-url", remoteName], {
+      cwd: projectCwd,
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function remoteRefExists(projectCwd, remoteRef) {
+  try {
+    execFileSync("git", ["show-ref", "--verify", "--quiet", `refs/remotes/${remoteRef}`], {
+      cwd: projectCwd,
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveWorktreeBaseRef(projectCwd) {
+  if (!remoteExists(projectCwd, "origin")) {
+    return "HEAD";
+  }
+
+  git(["fetch", "origin", "--prune"], projectCwd);
+
+  try {
+    const remoteHead = git(["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], projectCwd);
+    if (remoteHead.startsWith("refs/remotes/")) {
+      return remoteHead.slice("refs/remotes/".length);
+    }
+  } catch {
+    // Fall through to explicit remote refs when origin/HEAD is not configured.
+  }
+
+  if (remoteRefExists(projectCwd, "origin/main")) {
+    return "origin/main";
+  }
+
+  return "HEAD";
+}
+
 function isReusableWorktree(cwd) {
   return fs
     .access(path.join(cwd, ".git"))
@@ -127,7 +174,10 @@ export async function prepareWorktree({
     if (branchExists(projectCwd, resolvedBranchName)) {
       git(["worktree", "add", "--detach", cwd, resolvedBranchName], projectCwd);
     } else {
-      git(["worktree", "add", "-b", resolvedBranchName, cwd, "HEAD"], projectCwd);
+      git(
+        ["worktree", "add", "-b", resolvedBranchName, cwd, resolveWorktreeBaseRef(projectCwd)],
+        projectCwd,
+      );
     }
   }
 

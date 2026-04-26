@@ -86,6 +86,15 @@ The profile should have access to:
 - the worker CLIs it may launch
 - the PREQSTATION MCP/API credentials required by the launched workers
 
+Worker runtime state should stay separate from Hermes profile state. If the Hermes profile uses its own `HOME`, point detached workers at a real authenticated worker home with one of:
+
+- `PREQSTATION_WORKER_HOME`
+- `PREQSTATION_CODEX_HOME`
+- `PREQSTATION_CLAUDE_HOME`
+- `PREQSTATION_GEMINI_HOME`
+
+When none of these are set, the dispatcher falls back to the owning user's real home instead of the Hermes profile home.
+
 ## Configure Telegram Delivery
 
 Use the same channel or group delivery pattern as the OpenClaw Telegram path. PREQSTATION sends a message into the dispatch chat, and the Hermes Telegram profile reacts to the message.
