@@ -241,3 +241,118 @@ test("status hermes reports whether the installed skill is current", async () =>
     ),
   });
 });
+
+test("update refreshes installed surfaces without installing missing ones", async () => {
+  const stdout = [];
+  const runtimeCalls = [];
+
+  const exitCode = await runDispatcherCli({
+    argv: ["update"],
+    stdout: { write: (value) => stdout.push(value) },
+    stderr: { write: () => {} },
+    getHermesSkillStatusFn: async () => ({
+      ok: true,
+      target: "hermes",
+      installed: false,
+      current: false,
+      user_modified: false,
+      skill_file: "/tmp/hermes/SKILL.md",
+      metadata_file: "/tmp/hermes/.preqstation-dispatcher.json",
+    }),
+    installOpenClawPluginFn: async ({ updateOnly }) => ({
+      ok: true,
+      target: "openclaw",
+      action: updateOnly ? "updated" : "installed",
+      installed_version: "0.1.20",
+      package_version: "0.1.22",
+      restart_command: "openclaw gateway restart",
+    }),
+    installRuntimeWorkerSupportFn: async ({ runtimes, installMissing }) => {
+      runtimeCalls.push({ runtimes, installMissing });
+      const [runtime] = runtimes;
+      if (runtime === "claude-code") {
+        return [{ ok: true, target: runtime, action: "already_current", installed_version: "0.1.38" }];
+      }
+      if (runtime === "codex") {
+        return [{ ok: true, target: runtime, action: "updated", installed_version: "0.1.37", latest_version: "0.1.38" }];
+      }
+      return [{ ok: true, target: runtime, action: "not_installed", latest_version: "0.1.38" }];
+    },
+    dispatchPreqRun: async () => {
+      throw new Error("update must not dispatch");
+    },
+  });
+
+  const result = JSON.parse(stdout.join(""));
+  assert.equal(exitCode, 0);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.host_targets, ["openclaw", "hermes"]);
+  assert.deepEqual(result.runtime_engines, ["claude-code", "codex", "gemini-cli"]);
+  assert.deepEqual(runtimeCalls, [
+    { runtimes: ["claude-code"], installMissing: false },
+    { runtimes: ["codex"], installMissing: false },
+    { runtimes: ["gemini-cli"], installMissing: false },
+  ]);
+  assert.deepEqual(
+    result.results.map((entry) => ({ target: entry.target, action: entry.action })),
+    [
+      { target: "openclaw", action: "updated" },
+      { target: "hermes", action: "not_installed" },
+      { target: "claude-code", action: "already_current" },
+      { target: "codex", action: "updated" },
+      { target: "gemini-cli", action: "not_installed" },
+    ],
+  );
+});
+
+test("update renders a friendly summary for interactive tty output", async () => {
+  const stdout = [];
+
+  const exitCode = await runDispatcherCli({
+    argv: ["update"],
+    stdout: { write: (value) => stdout.push(value), isTTY: true },
+    stderr: { write: () => {} },
+    getHermesSkillStatusFn: async () => ({
+      ok: true,
+      target: "hermes",
+      installed: true,
+    }),
+    syncHermesSkillFn: async () => ({
+      ok: true,
+      target: "hermes",
+      action: "already_current",
+      version: "0.1.22",
+    }),
+    installOpenClawPluginFn: async () => ({
+      ok: true,
+      target: "openclaw",
+      action: "not_installed",
+      package_version: "0.1.22",
+    }),
+    installRuntimeWorkerSupportFn: async ({ runtimes }) => {
+      const [runtime] = runtimes;
+      if (runtime === "claude-code") {
+        return [{ ok: true, target: runtime, action: "unavailable", error: "claude command not found" }];
+      }
+      if (runtime === "codex") {
+        return [{ ok: true, target: runtime, action: "updated", installed_version: "0.1.37", latest_version: "0.1.38" }];
+      }
+      return [{ ok: false, target: runtime, action: "failed", error: "network timeout" }];
+    },
+    dispatchPreqRun: async () => {
+      throw new Error("update must not dispatch");
+    },
+  });
+
+  const rendered = stdout.join("");
+  assert.equal(exitCode, 1);
+  assert.match(rendered, /Update summary/);
+  assert.match(rendered, /Dispatcher hosts checked: OpenClaw, Hermes Agent/);
+  assert.match(rendered, /Worker runtimes checked: Claude Code, Codex, Gemini CLI/);
+  assert.match(rendered, /OpenClaw: not installed/);
+  assert.match(rendered, /Hermes Agent: already current \(0\.1\.22\)/);
+  assert.match(rendered, /Claude Code support: unavailable \(claude command not found\)/);
+  assert.match(rendered, /Codex support: updated \(0\.1\.37 -> 0\.1\.38\)/);
+  assert.match(rendered, /Gemini CLI support: failed \(network timeout\)/);
+  assert.doesNotMatch(rendered, /^\{/m);
+});

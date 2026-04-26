@@ -98,6 +98,25 @@ async function inspectRuntimeMcpServer({ installer, env, exec }) {
   }
 }
 
+function maybeNormalizePreqstationServerUrl(value) {
+  try {
+    return normalizePreqstationServerUrl(value);
+  } catch {
+    return null;
+  }
+}
+
+function extractServerUrlFromMcpUrl(mcpUrl) {
+  const normalizedMcpUrl = String(mcpUrl || "").trim().replace(/\/+$/u, "");
+  if (!normalizedMcpUrl) {
+    return null;
+  }
+  if (!/\/mcp$/iu.test(normalizedMcpUrl)) {
+    return null;
+  }
+  return maybeNormalizePreqstationServerUrl(normalizedMcpUrl.replace(/\/mcp$/iu, ""));
+}
+
 function isLocalhostHttp(url) {
   return /^http:\/\/localhost(?::\d+)?(?:\/.*)?$/iu.test(url);
 }
@@ -117,6 +136,49 @@ export function normalizePreqstationServerUrl(value) {
 
 export function buildPreqstationMcpUrl(serverUrl) {
   return `${normalizePreqstationServerUrl(serverUrl)}/mcp`;
+}
+
+export async function resolveDefaultPreqstationServerUrl({
+  runtimes = SUPPORTED_RUNTIME_TARGETS,
+  env = process.env,
+  exec = execFileAsync,
+} = {}) {
+  for (const key of ["PREQSTATION_SERVER_URL", "PREQSTATION_API_URL"]) {
+    const normalized = maybeNormalizePreqstationServerUrl(env?.[key]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  const discoveredServerUrls = new Set();
+  for (const runtime of Array.from(new Set((runtimes ?? []).filter(Boolean)))) {
+    const installer = RUNTIME_MCP_INSTALLERS[runtime];
+    if (!installer) {
+      continue;
+    }
+
+    let existingConfig = null;
+    try {
+      existingConfig = await inspectRuntimeMcpServer({
+        installer,
+        env,
+        exec,
+      });
+    } catch {
+      continue;
+    }
+
+    const serverUrl = extractServerUrlFromMcpUrl(existingConfig?.url);
+    if (serverUrl) {
+      discoveredServerUrls.add(serverUrl);
+    }
+  }
+
+  if (discoveredServerUrls.size === 1) {
+    return Array.from(discoveredServerUrls)[0];
+  }
+
+  return null;
 }
 
 export async function installRuntimeMcpServers({

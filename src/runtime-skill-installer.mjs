@@ -87,10 +87,22 @@ async function ensureClaudePlugin({
   env,
   exec,
   latestVersion,
+  installMissing,
 }) {
   const pluginList = await exec("claude", ["plugin", "list"], { env });
   const pluginInstalled = isClaudePluginInstalled(pluginList?.stdout ?? "");
   const installedVersion = parseClaudePluginVersion(pluginList?.stdout ?? "");
+
+  if (!pluginInstalled && !installMissing) {
+    return {
+      ok: true,
+      target: "claude-code",
+      action: "not_installed",
+      installed_version: null,
+      latest_version: latestVersion,
+      marketplace_added: false,
+    };
+  }
 
   let marketplaceAdded = false;
   const marketplaceList = await exec("claude", ["plugin", "marketplace", "list"], { env });
@@ -142,12 +154,24 @@ async function ensureAgentSkill({
   exec,
   readFile,
   latestVersion,
+  installMissing,
 }) {
   const runtimeConfig = RUNTIME_SKILL_TARGETS[runtime];
   const installedSkills = await listInstalledSkills({ env, exec });
   const entry = installedSkills.find((skill) => skill?.name === PREQSTATION_SKILL_NAME) ?? null;
   const agentInstalled = Boolean(entry?.agents?.includes(runtimeConfig.agentName));
   const installedVersion = entry?.path ? await readInstalledSkillVersion(entry.path, readFile) : null;
+
+  if (!agentInstalled && !installMissing) {
+    return {
+      ok: true,
+      target: runtime,
+      action: "not_installed",
+      installed_version: installedVersion,
+      latest_version: latestVersion,
+      skill_path: entry?.path ?? null,
+    };
+  }
 
   if (agentInstalled && latestVersion && installedVersion === latestVersion) {
     return {
@@ -192,6 +216,7 @@ export async function installRuntimeWorkerSupport({
   exec = execFileAsync,
   fetchFn = globalThis.fetch,
   readFile = fs.readFile,
+  installMissing = true,
 } = {}) {
   const runtimeTargets = Array.from(new Set((runtimes ?? []).filter(Boolean)));
   const latestVersion = await fetchLatestPreqstationSkillVersion({ fetchFn }).catch(() => null);
@@ -206,7 +231,7 @@ export async function installRuntimeWorkerSupport({
     }
 
     if (runtimeConfig.type === "plugin") {
-      results.push(await ensureClaudePlugin({ env, exec, latestVersion }));
+      results.push(await ensureClaudePlugin({ env, exec, latestVersion, installMissing }));
       continue;
     }
 
@@ -217,6 +242,7 @@ export async function installRuntimeWorkerSupport({
         exec,
         readFile,
         latestVersion,
+        installMissing,
       }),
     );
   }

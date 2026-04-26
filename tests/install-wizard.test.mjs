@@ -25,6 +25,7 @@ test("promptInstallPlan collects host and runtime selections before requesting t
       inputCalls.push({ config, context });
       return "https://preq.example.com/";
     },
+    resolveDefaultPreqstationServerUrlFn: async () => "https://saved-preq.example.com",
   });
 
   assert.deepEqual(plan, {
@@ -51,6 +52,7 @@ test("promptInstallPlan collects host and runtime selections before requesting t
   assert.equal(checkboxCalls[0].config.validate(["openclaw"]), true);
   assert.equal(checkboxCalls[1].config.validate(["codex"]), true);
   assert.match(inputCalls[0].config.message, /PREQSTATION server URL/i);
+  assert.equal(inputCalls[0].config.default, "https://saved-preq.example.com");
   assert.equal(typeof checkboxCalls[0].context.output.write, "function");
 });
 
@@ -69,6 +71,25 @@ test("promptInstallPlan leaves help text uncolored when stdout is not a TTY", as
   assert.equal(
     checkboxCalls[0].theme.style.keysHelpTip(),
     "Controls:  [up/down] move  [space] toggle  [enter] toggle / submit",
+  );
+});
+
+test("promptInstallPlan falls back to the placeholder URL when no prior PREQ server URL is known", async () => {
+  const inputCalls = [];
+
+  await promptInstallPlan({
+    outputStream: { write: () => {}, isTTY: true },
+    checkboxPrompt: async (_config, _context) => ["codex"],
+    inputPrompt: async (config) => {
+      inputCalls.push(config);
+      return "https://preq.example.com";
+    },
+    resolveDefaultPreqstationServerUrlFn: async () => null,
+  });
+
+  assert.equal(
+    inputCalls[0].default,
+    "https://your-preqstation-domain.vercel.app",
   );
 });
 

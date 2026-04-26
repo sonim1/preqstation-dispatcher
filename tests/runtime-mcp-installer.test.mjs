@@ -5,6 +5,7 @@ import {
   buildPreqstationMcpUrl,
   installRuntimeMcpServers,
   normalizePreqstationServerUrl,
+  resolveDefaultPreqstationServerUrl,
 } from "../src/runtime-mcp-installer.mjs";
 
 test("normalizePreqstationServerUrl trims trailing slashes and accepts localhost http", () => {
@@ -183,4 +184,81 @@ test("installRuntimeMcpServers skips runtimes that already point at the requeste
       },
     ],
   );
+});
+
+test("resolveDefaultPreqstationServerUrl prefers an explicit PREQSTATION_SERVER_URL env override", async () => {
+  const serverUrl = await resolveDefaultPreqstationServerUrl({
+    runtimes: ["claude-code", "codex"],
+    env: {
+      PATH: process.env.PATH,
+      PREQSTATION_SERVER_URL: "https://env-preq.example.com/",
+    },
+    exec: async () => {
+      throw new Error("should not inspect runtimes when env already provides the server URL");
+    },
+  });
+
+  assert.equal(serverUrl, "https://env-preq.example.com");
+});
+
+test("resolveDefaultPreqstationServerUrl infers a shared server URL from existing runtime MCP registrations", async () => {
+  const calls = [];
+
+  const serverUrl = await resolveDefaultPreqstationServerUrl({
+    runtimes: ["claude-code", "codex", "gemini-cli"],
+    env: { PATH: process.env.PATH },
+    exec: async (command, args) => {
+      calls.push({ command, args });
+      if (command === "claude" && args.join(" ") === "mcp get preqstation") {
+        return {
+          stdout: "preqstation:\n  URL: https://preq.example.com/mcp\n",
+          stderr: "",
+        };
+      }
+      if (command === "codex" && args.join(" ") === "mcp get preqstation") {
+        return {
+          stdout: "preqstation\n  url: https://preq.example.com/mcp\n",
+          stderr: "",
+        };
+      }
+      if (command === "gemini" && args.join(" ") === "mcp list") {
+        return {
+          stdout: "preqstation  enabled\n",
+          stderr: "",
+        };
+      }
+      throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+    },
+  });
+
+  assert.equal(serverUrl, "https://preq.example.com");
+  assert.deepEqual(calls, [
+    { command: "claude", args: ["mcp", "get", "preqstation"] },
+    { command: "codex", args: ["mcp", "get", "preqstation"] },
+    { command: "gemini", args: ["mcp", "list"] },
+  ]);
+});
+
+test("resolveDefaultPreqstationServerUrl returns null when installed runtimes disagree on the PREQ server URL", async () => {
+  const serverUrl = await resolveDefaultPreqstationServerUrl({
+    runtimes: ["claude-code", "codex"],
+    env: { PATH: process.env.PATH },
+    exec: async (command, args) => {
+      if (command === "claude" && args.join(" ") === "mcp get preqstation") {
+        return {
+          stdout: "preqstation:\n  URL: https://preq-a.example.com/mcp\n",
+          stderr: "",
+        };
+      }
+      if (command === "codex" && args.join(" ") === "mcp get preqstation") {
+        return {
+          stdout: "preqstation\n  url: https://preq-b.example.com/mcp\n",
+          stderr: "",
+        };
+      }
+      throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+    },
+  });
+
+  assert.equal(serverUrl, null);
 });

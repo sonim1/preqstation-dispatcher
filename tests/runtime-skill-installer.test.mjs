@@ -179,6 +179,57 @@ test("installRuntimeWorkerSupport installs the Codex skill when it is missing fo
   ]);
 });
 
+test("installRuntimeWorkerSupport reports Codex not_installed during update-only runs", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-skill-codex-skip-"));
+  const skillDir = path.join(tempDir, "preqstation");
+  await fs.mkdir(skillDir, { recursive: true });
+  await fs.writeFile(
+    path.join(skillDir, "package.json"),
+    JSON.stringify({ name: "preqstation-skill", version: "0.1.35" }),
+    "utf8",
+  );
+
+  const calls = [];
+  const results = await installRuntimeWorkerSupport({
+    runtimes: ["codex"],
+    env: { PATH: process.env.PATH },
+    fetchFn: createFetchVersion("0.1.35"),
+    installMissing: false,
+    exec: async (command, args, options) => {
+      calls.push({ command, args, options });
+      if (command === "npx" && args.join(" ") === "skills ls -g --json") {
+        return {
+          stdout: JSON.stringify([
+            {
+              name: "preqstation",
+              path: skillDir,
+              scope: "global",
+              agents: ["Claude Code"],
+            },
+          ]),
+          stderr: "",
+        };
+      }
+      throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+    },
+  });
+
+  assert.deepEqual(
+    calls.map(({ command, args }) => ({ command, args })),
+    [{ command: "npx", args: ["skills", "ls", "-g", "--json"] }],
+  );
+  assert.deepEqual(results, [
+    {
+      ok: true,
+      target: "codex",
+      action: "not_installed",
+      installed_version: "0.1.35",
+      latest_version: "0.1.35",
+      skill_path: skillDir,
+    },
+  ]);
+});
+
 test("installRuntimeWorkerSupport installs the Claude plugin from the PREQ marketplace when missing", async () => {
   const calls = [];
   const results = await installRuntimeWorkerSupport({
@@ -226,6 +277,38 @@ test("installRuntimeWorkerSupport installs the Claude plugin from the PREQ marke
       installed_version: "0.1.35",
       latest_version: "0.1.35",
       marketplace_added: true,
+    },
+  ]);
+});
+
+test("installRuntimeWorkerSupport reports Claude not_installed during update-only runs", async () => {
+  const calls = [];
+  const results = await installRuntimeWorkerSupport({
+    runtimes: ["claude-code"],
+    env: { PATH: process.env.PATH },
+    fetchFn: createFetchVersion("0.1.35"),
+    installMissing: false,
+    exec: async (command, args, options) => {
+      calls.push({ command, args, options });
+      if (command === "claude" && args.join(" ") === "plugin list") {
+        return { stdout: "Installed plugins:\n", stderr: "" };
+      }
+      throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+    },
+  });
+
+  assert.deepEqual(
+    calls.map(({ command, args }) => ({ command, args })),
+    [{ command: "claude", args: ["plugin", "list"] }],
+  );
+  assert.deepEqual(results, [
+    {
+      ok: true,
+      target: "claude-code",
+      action: "not_installed",
+      installed_version: null,
+      latest_version: "0.1.35",
+      marketplace_added: false,
     },
   ]);
 });

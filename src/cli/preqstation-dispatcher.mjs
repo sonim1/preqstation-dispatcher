@@ -18,6 +18,10 @@ import {
   syncHermesSkill,
 } from "../hermes-skill-installer.mjs";
 import { installOpenClawPlugin } from "../openclaw-installer.mjs";
+import { installRuntimeWorkerSupport } from "../runtime-skill-installer.mjs";
+
+const UPDATE_HOST_TARGETS = ["openclaw", "hermes"];
+const UPDATE_RUNTIME_TARGETS = ["claude-code", "codex", "gemini-cli"];
 
 function getDispatchHome(env) {
   return (
@@ -177,6 +181,7 @@ function printUsage(stdout) {
       "  preqstation-dispatcher setup status",
       "  preqstation-dispatcher install [hermes|openclaw] [--json]",
       "  preqstation-dispatcher install",
+      "  preqstation-dispatcher update [--force] [--json]",
       "  preqstation-dispatcher sync hermes [--force]",
       "  preqstation-dispatcher status hermes",
       "",
@@ -224,6 +229,15 @@ function describeInstallResultAction(result) {
   if (result.action === "mcp_already_configured") {
     return "already configured";
   }
+  if (result.action === "not_installed") {
+    return "not installed";
+  }
+  if (result.action === "unavailable") {
+    return "unavailable";
+  }
+  if (result.action === "failed") {
+    return "failed";
+  }
   if (result.action === "already_current") {
     return "already current";
   }
@@ -256,6 +270,21 @@ function describeInstallResultVersion(result) {
   return null;
 }
 
+function describeInstallResultDetails(result) {
+  const details = [];
+  const version = describeInstallResultVersion(result);
+  if (version) {
+    details.push(version);
+  }
+  if (result.restart_command) {
+    details.push(`restart: ${result.restart_command}`);
+  }
+  if (result.error) {
+    details.push(result.error);
+  }
+  return details;
+}
+
 function formatInteractiveInstallSummary(result) {
   const lines = ["Install summary"];
 
@@ -276,14 +305,7 @@ function formatInteractiveInstallSummary(result) {
   }
 
   for (const entry of result.results ?? []) {
-    const details = [];
-    const version = describeInstallResultVersion(entry);
-    if (version) {
-      details.push(version);
-    }
-    if (entry.restart_command) {
-      details.push(`restart: ${entry.restart_command}`);
-    }
+    const details = describeInstallResultDetails(entry);
 
     lines.push(
       `- ${describeInstallResultLabel(entry)}: ${describeInstallResultAction(entry)}${
@@ -293,6 +315,67 @@ function formatInteractiveInstallSummary(result) {
   }
 
   return `${lines.join("\n")}\n`;
+}
+
+function formatInteractiveUpdateSummary(result) {
+  const lines = ["Update summary"];
+
+  if (Array.isArray(result.host_targets) && result.host_targets.length > 0) {
+    lines.push(
+      `- Dispatcher hosts checked: ${result.host_targets.map(describeInstallTarget).join(", ")}`,
+    );
+  }
+
+  if (Array.isArray(result.runtime_engines) && result.runtime_engines.length > 0) {
+    lines.push(
+      `- Worker runtimes checked: ${result.runtime_engines.map(describeRuntimeTarget).join(", ")}`,
+    );
+  }
+
+  for (const entry of result.results ?? []) {
+    const details = describeInstallResultDetails(entry);
+
+    lines.push(
+      `- ${describeInstallResultLabel(entry)}: ${describeInstallResultAction(entry)}${
+        details.length > 0 ? ` (${details.join(", ")})` : ""
+      }`,
+    );
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+function isMissingExecutableError(error) {
+  return error?.code === "ENOENT";
+}
+
+function formatMissingExecutableMessage(target, error) {
+  const executable = error?.path || error?.spawnargs?.[0] || null;
+  if (executable) {
+    return `${executable} command not found`;
+  }
+  return `${target} command not available on this host`;
+}
+
+async function runSafeUpdateTarget(target, callback) {
+  try {
+    return await callback();
+  } catch (error) {
+    if (isMissingExecutableError(error)) {
+      return {
+        ok: true,
+        target,
+        action: "unavailable",
+        error: formatMissingExecutableMessage(target, error),
+      };
+    }
+    return {
+      ok: false,
+      target,
+      action: "failed",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 async function handleSetup({ args, stdout, env }) {
@@ -394,6 +477,79 @@ async function handleInstallCommand({
   throw new Error("Usage: preqstation-dispatcher install [hermes|openclaw]");
 }
 
+async function handleUpdateCommand({
+  args,
+  stdout,
+  env,
+  getHermesSkillStatusFn = getHermesSkillStatus,
+  syncHermesSkillFn = syncHermesSkill,
+  installOpenClawPluginFn = installOpenClawPlugin,
+  installRuntimeWorkerSupportFn = installRuntimeWorkerSupport,
+}) {
+  const { options, positional } = parseOptions(args);
+  if (positional.length > 0) {
+    throw new Error("Usage: preqstation-dispatcher update [--force] [--json]");
+  }
+
+  const results = [];
+  results.push(
+    await runSafeUpdateTarget("openclaw", () =>
+      installOpenClawPluginFn({
+        env,
+        updateOnly: true,
+      }),
+    ),
+  );
+
+  results.push(
+    await runSafeUpdateTarget("hermes", async () => {
+      const status = await getHermesSkillStatusFn({ env });
+      if (!status.installed) {
+        return {
+          ok: true,
+          target: "hermes",
+          action: "not_installed",
+          skill_file: status.skill_file,
+          metadata_file: status.metadata_file,
+        };
+      }
+      return syncHermesSkillFn({
+        env,
+        force: options.force === "true",
+      });
+    }),
+  );
+
+  for (const runtime of UPDATE_RUNTIME_TARGETS) {
+    const result = await runSafeUpdateTarget(runtime, async () => {
+      const [entry] = await installRuntimeWorkerSupportFn({
+        runtimes: [runtime],
+        env,
+        installMissing: false,
+      });
+      return entry;
+    });
+    results.push(result);
+  }
+
+  const payload = {
+    ok: results.every((entry) => entry?.ok !== false),
+    action: "updated",
+    interactive: true,
+    host_targets: UPDATE_HOST_TARGETS,
+    runtime_engines: UPDATE_RUNTIME_TARGETS,
+    results,
+  };
+
+  if (stdout?.isTTY && options.json !== "true") {
+    stdout.write(formatInteractiveUpdateSummary(payload));
+  } else {
+    stdout.write(`${JSON.stringify(payload)}\n`);
+  }
+
+  return payload.ok ? 0 : 1;
+}
+
 async function handlePlatformCommand({ command, args, stdout, env }) {
   const { options, positional } = parseOptions(args);
   const [target] = positional;
@@ -438,6 +594,10 @@ export async function runDispatcherCli({
   env = process.env,
   dispatchPreqRun = defaultDispatchPreqRun,
   runInstallWizard = defaultRunInstallWizard,
+  getHermesSkillStatusFn = getHermesSkillStatus,
+  syncHermesSkillFn = syncHermesSkill,
+  installOpenClawPluginFn = installOpenClawPlugin,
+  installRuntimeWorkerSupportFn = installRuntimeWorkerSupport,
 }) {
   const [command, ...args] = argv;
 
@@ -455,6 +615,18 @@ export async function runDispatcherCli({
     if (command === "install") {
       await handleInstallCommand({ args, stdin, stdout, env, runInstallWizard });
       return 0;
+    }
+
+    if (command === "update") {
+      return handleUpdateCommand({
+        args,
+        stdout,
+        env,
+        getHermesSkillStatusFn,
+        syncHermesSkillFn,
+        installOpenClawPluginFn,
+        installRuntimeWorkerSupportFn,
+      });
     }
 
     if (command === "sync" || command === "status") {

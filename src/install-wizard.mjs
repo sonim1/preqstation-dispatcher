@@ -8,6 +8,7 @@ import {
   buildPreqstationMcpUrl,
   installRuntimeMcpServers,
   normalizePreqstationServerUrl,
+  resolveDefaultPreqstationServerUrl,
 } from "./runtime-mcp-installer.mjs";
 
 const INSTALL_TARGET_CHOICES = [
@@ -165,6 +166,7 @@ export async function promptInstallPlan({
   env = process.env,
   checkboxPrompt = multiSelectSubmitPrompt,
   inputPrompt = input,
+  resolveDefaultPreqstationServerUrlFn = resolveDefaultPreqstationServerUrl,
 } = {}) {
   const context = createPromptContext({ inputStream, outputStream });
   const checkboxTheme = createCheckboxTheme({ outputStream, env });
@@ -190,11 +192,16 @@ export async function promptInstallPlan({
 
   let preqstationServerUrl = null;
   if (runtimeEngines.length > 0) {
+    const defaultPreqstationServerUrl =
+      (await resolveDefaultPreqstationServerUrlFn({
+        runtimes: runtimeEngines,
+        env,
+      })) || "https://your-preqstation-domain.vercel.app";
     preqstationServerUrl = normalizePreqstationServerUrl(
       await inputPrompt(
         {
           message: "PREQSTATION server URL",
-          default: "https://your-preqstation-domain.vercel.app",
+          default: defaultPreqstationServerUrl,
         },
         context,
       ),

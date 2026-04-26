@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { runDispatcherCli } from "../src/cli/preqstation-dispatcher.mjs";
+import { installOpenClawPlugin } from "../src/openclaw-installer.mjs";
 
 const packageJsonPath = new URL("../package.json", import.meta.url);
 
@@ -177,6 +178,49 @@ test("install openclaw reports already_current when the installed plugin version
     plugin_id: "preqstation-dispatcher",
     restart_command: "openclaw gateway restart",
     installed_version: currentPackageVersion,
+    package_version: currentPackageVersion,
+  });
+});
+
+test("installOpenClawPlugin reports not_installed during update-only runs", async () => {
+  const currentPackageVersion = await readCurrentPackageVersion();
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-openclaw-update-only-"));
+  const binDir = path.join(tempDir, "bin");
+  const logFile = path.join(tempDir, "openclaw-args.log");
+  await fs.mkdir(binDir, { recursive: true });
+  const openclawBin = path.join(binDir, "openclaw");
+  await fs.writeFile(
+    openclawBin,
+    [
+      "#!/bin/sh",
+      `printf '%s\\n' \"$*\" >> \"${logFile}\"`,
+      'if [ "$1 $2 $3" = "plugins inspect preqstation-dispatcher" ]; then',
+      '  echo "No plugin found with id preqstation-dispatcher" >&2',
+      "  exit 1",
+      "fi",
+      "exit 0",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await fs.chmod(openclawBin, 0o755);
+
+  const result = await installOpenClawPlugin({
+    env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+    updateOnly: true,
+  });
+
+  assert.deepEqual(
+    (await fs.readFile(logFile, "utf8")).trim().split("\n"),
+    ["plugins inspect preqstation-dispatcher"],
+  );
+  assert.deepEqual(result, {
+    ok: true,
+    target: "openclaw",
+    action: "not_installed",
+    package: "@sonim1/preqstation-dispatcher",
+    plugin_id: "preqstation-dispatcher",
+    restart_command: "openclaw gateway restart",
     package_version: currentPackageVersion,
   });
 });

@@ -49,6 +49,7 @@ function parseInstalledPluginVersion(stdout) {
 export async function installOpenClawPlugin({
   env = process.env,
   exec = execFileAsync,
+  updateOnly = false,
 } = {}) {
   const packageVersion = await readPackageVersion();
   try {
@@ -81,6 +82,17 @@ export async function installOpenClawPlugin({
   } catch (inspectError) {
     if (!isPluginNotInstalledError(inspectError)) {
       throw inspectError;
+    }
+    if (updateOnly) {
+      return {
+        ok: true,
+        target: "openclaw",
+        action: "not_installed",
+        package: PACKAGE_NAME,
+        plugin_id: PLUGIN_ID,
+        restart_command: "openclaw gateway restart",
+        package_version: packageVersion,
+      };
     }
   }
 
