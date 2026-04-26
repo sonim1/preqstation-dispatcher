@@ -145,15 +145,16 @@ test("runInstallWizard executes selected host installs and runtime MCP setup", a
   assert.deepEqual(result.runtime_engines, ["codex", "gemini-cli"]);
   assert.equal(result.mcp_url, "https://preq.example.com/mcp");
   assert.equal(result.results.length, 6);
-  assert.match(output.join(""), /Using PREQ MCP endpoint: https:\/\/preq\.example\.com\/mcp/);
-  assert.match(output.join(""), /Installing OpenClaw/);
-  assert.match(output.join(""), /Installing Hermes Agent/);
-  assert.match(output.join(""), /Installing Codex support/);
-  assert.match(output.join(""), /Codex skill installed/);
-  assert.match(output.join(""), /Registering Codex MCP/);
-  assert.match(output.join(""), /Installing Gemini CLI support/);
-  assert.match(output.join(""), /Gemini CLI skill installed/);
-  assert.match(output.join(""), /Registering Gemini CLI MCP/);
+  assert.match(output.join(""), /PREQ MCP endpoint/);
+  assert.match(output.join(""), /https:\/\/preq\.example\.com\/mcp/);
+  assert.match(output.join(""), /Dispatcher hosts/);
+  assert.match(output.join(""), /OpenClaw\s+installed/);
+  assert.match(output.join(""), /Hermes Agent\s+installed/);
+  assert.match(output.join(""), /Worker runtimes/);
+  assert.match(output.join(""), /Codex skill\s+installed/);
+  assert.match(output.join(""), /Codex MCP\s+registered/);
+  assert.match(output.join(""), /Gemini CLI skill\s+installed/);
+  assert.match(output.join(""), /Gemini CLI MCP\s+registered/);
 });
 
 test("runInstallWizard reports when an MCP runtime is already configured", async () => {
@@ -184,8 +185,8 @@ test("runInstallWizard reports when an MCP runtime is already configured", async
     ],
   });
 
-  assert.match(output.join(""), /Claude Code plugin already current/);
-  assert.match(output.join(""), /Claude Code MCP already configured/);
+  assert.match(output.join(""), /Claude Code plugin\s+current/);
+  assert.match(output.join(""), /Claude Code MCP\s+current/);
 });
 
 test("runInstallWizard reports already current host installs without pretending they were reinstalled", async () => {
@@ -212,6 +213,6 @@ test("runInstallWizard reports already current host installs without pretending 
     }),
   });
 
-  assert.match(output.join(""), /OpenClaw already current/);
-  assert.match(output.join(""), /Hermes Agent already current/);
+  assert.match(output.join(""), /OpenClaw\s+current/);
+  assert.match(output.join(""), /Hermes Agent\s+current/);
 });

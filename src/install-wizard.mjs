@@ -107,12 +107,28 @@ function writeProgress(outputStream, message) {
   outputStream.write(`${message}\n`);
 }
 
+function padCell(value, width) {
+  return String(value || "").padEnd(width, " ");
+}
+
+function writeSection(outputStream, title) {
+  writeProgress(outputStream, title);
+}
+
+function writeIndentedLine(outputStream, value) {
+  writeProgress(outputStream, `  ${value}`);
+}
+
+function writeStatusRow(outputStream, label, status) {
+  writeProgress(outputStream, `  ${padCell(label, 20)} ${status}`);
+}
+
 function describeInstallAction(action) {
   if (action === "updated") {
     return "updated";
   }
   if (action === "already_current") {
-    return "already current";
+    return "current";
   }
   return "installed";
 }
@@ -143,21 +159,21 @@ function describeRuntime(runtime) {
 function describeRuntimeSupportAction(action, runtime) {
   if (runtime === "claude-code") {
     if (action === "already_current") {
-      return "plugin already current";
+      return "current";
     }
     if (action === "updated") {
-      return "plugin updated";
+      return "updated";
     }
-    return "plugin installed";
+    return "installed";
   }
 
   if (action === "already_current") {
-    return "skill already current";
+    return "current";
   }
   if (action === "updated") {
-    return "skill updated";
+    return "updated";
   }
-  return "skill installed";
+  return "installed";
 }
 
 export async function promptInstallPlan({
@@ -237,31 +253,32 @@ export async function runInstallWizard({
   const results = [];
 
   if (plan.runtimeEngines.length > 0) {
-    writeProgress(outputStream, `Using PREQ MCP endpoint: ${plan.mcpUrl}`);
+    writeSection(outputStream, "PREQ MCP endpoint");
+    writeIndentedLine(outputStream, plan.mcpUrl);
+  }
+
+  if (plan.installTargets.length > 0) {
+    if (plan.runtimeEngines.length > 0) {
+      writeProgress(outputStream, "");
+    }
+    writeSection(outputStream, "Dispatcher hosts");
   }
 
   for (const target of plan.installTargets) {
-    writeProgress(outputStream, `Installing ${describeTarget(target)}...`);
     if (target === "hermes") {
       const result = await syncHermesSkillFn({
         env,
         force,
       });
       results.push(result);
-      writeProgress(
-        outputStream,
-        `✔ ${describeTarget(target)} ${describeInstallAction(result.action)}.`,
-      );
+      writeStatusRow(outputStream, describeTarget(target), describeInstallAction(result.action));
       continue;
     }
 
     if (target === "openclaw") {
       const result = await installOpenClawPluginFn({ env });
       results.push(result);
-      writeProgress(
-        outputStream,
-        `✔ ${describeTarget(target)} ${describeInstallAction(result.action)}.`,
-      );
+      writeStatusRow(outputStream, describeTarget(target), describeInstallAction(result.action));
       continue;
     }
 
@@ -269,20 +286,23 @@ export async function runInstallWizard({
   }
 
   if (plan.runtimeEngines.length > 0) {
+    if (plan.installTargets.length > 0) {
+      writeProgress(outputStream, "");
+    }
+    writeSection(outputStream, "Worker runtimes");
     for (const runtime of plan.runtimeEngines) {
-      writeProgress(outputStream, `Installing ${describeRuntime(runtime)} support...`);
       const runtimeSupportResults = await installRuntimeWorkerSupportFn({
         env,
         runtimes: [runtime],
       });
       results.push(...runtimeSupportResults);
       const runtimeSupportAction = runtimeSupportResults[0]?.action;
-      writeProgress(
+      writeStatusRow(
         outputStream,
-        `✔ ${describeRuntime(runtime)} ${describeRuntimeSupportAction(runtimeSupportAction, runtime)}.`,
+        `${describeRuntime(runtime)} ${runtime === "claude-code" ? "plugin" : "skill"}`,
+        describeRuntimeSupportAction(runtimeSupportAction, runtime),
       );
 
-      writeProgress(outputStream, `Registering ${describeRuntime(runtime)} MCP...`);
       const runtimeResults = await installRuntimeMcpServersFn({
         env,
         runtimes: [runtime],
@@ -290,11 +310,10 @@ export async function runInstallWizard({
       });
       results.push(...runtimeResults);
       const runtimeAction = runtimeResults[0]?.action;
-      writeProgress(
+      writeStatusRow(
         outputStream,
-        `✔ ${describeRuntime(runtime)} MCP ${
-          runtimeAction === "mcp_already_configured" ? "already configured" : "registered"
-        }.`,
+        `${describeRuntime(runtime)} MCP`,
+        runtimeAction === "mcp_already_configured" ? "current" : "registered",
       );
     }
   }

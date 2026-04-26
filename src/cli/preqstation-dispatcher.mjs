@@ -227,7 +227,7 @@ function describeInstallResultAction(result) {
     return "registered";
   }
   if (result.action === "mcp_already_configured") {
-    return "already configured";
+    return "configured";
   }
   if (result.action === "not_installed") {
     return "not installed";
@@ -239,7 +239,7 @@ function describeInstallResultAction(result) {
     return "failed";
   }
   if (result.action === "already_current") {
-    return "already current";
+    return "current";
   }
   if (result.action === "updated") {
     return "updated";
@@ -285,64 +285,92 @@ function describeInstallResultDetails(result) {
   return details;
 }
 
-function formatInteractiveInstallSummary(result) {
-  const lines = ["Install summary"];
+function padSummaryCell(value, width) {
+  return String(value || "").padEnd(width, " ");
+}
 
-  if (Array.isArray(result.install_targets) && result.install_targets.length > 0) {
-    lines.push(
-      `- Dispatcher hosts: ${result.install_targets.map(describeInstallTarget).join(", ")}`,
-    );
+function formatSummarySection(title, rows) {
+  if (!rows.length) {
+    return null;
   }
 
-  if (Array.isArray(result.runtime_engines) && result.runtime_engines.length > 0) {
+  const labelWidth = rows.reduce((max, row) => Math.max(max, row.label.length), 0);
+  const statusWidth = rows.reduce((max, row) => Math.max(max, row.status.length), 0);
+  const lines = [title];
+  for (const row of rows) {
     lines.push(
-      `- Worker runtimes: ${result.runtime_engines.map(describeRuntimeTarget).join(", ")}`,
-    );
-  }
-
-  if (result.mcp_url) {
-    lines.push(`- PREQ MCP endpoint: ${result.mcp_url}`);
-  }
-
-  for (const entry of result.results ?? []) {
-    const details = describeInstallResultDetails(entry);
-
-    lines.push(
-      `- ${describeInstallResultLabel(entry)}: ${describeInstallResultAction(entry)}${
-        details.length > 0 ? ` (${details.join(", ")})` : ""
+      `  ${padSummaryCell(row.label, labelWidth)}  ${padSummaryCell(row.status, statusWidth)}${
+        row.details ? `  ${row.details}` : ""
       }`,
     );
   }
+  return lines.join("\n");
+}
 
-  return `${lines.join("\n")}\n`;
+function partitionSummaryRows(entries = []) {
+  const hosts = [];
+  const support = [];
+  const mcp = [];
+
+  for (const entry of entries) {
+    const row = {
+      label:
+        entry.target === "openclaw" || entry.target === "hermes"
+          ? describeInstallTarget(entry.target)
+          : describeRuntimeTarget(entry.target),
+      status: describeInstallResultAction(entry),
+      details: describeInstallResultDetails(entry).join(", "),
+    };
+
+    if (entry.action === "mcp_installed" || entry.action === "mcp_already_configured") {
+      mcp.push(row);
+      continue;
+    }
+    if (entry.target === "openclaw" || entry.target === "hermes") {
+      hosts.push(row);
+      continue;
+    }
+    support.push(row);
+  }
+
+  return { hosts, support, mcp };
+}
+
+function joinSummarySections(title, sections) {
+  return `${[title, ...sections.filter(Boolean)].join("\n\n")}\n`;
+}
+
+function formatInteractiveInstallSummary(result) {
+  const { hosts, support, mcp } = partitionSummaryRows(result.results ?? []);
+  const sections = [
+    formatSummarySection("Hosts", hosts),
+    formatSummarySection("Worker Support", support),
+    formatSummarySection(
+      "MCP",
+      [
+        ...(result.mcp_url
+          ? [
+              {
+                label: "Endpoint",
+                status: result.mcp_url,
+                details: "",
+              },
+            ]
+          : []),
+        ...mcp,
+      ],
+    ),
+  ];
+  return joinSummarySections("Install summary", sections);
 }
 
 function formatInteractiveUpdateSummary(result) {
-  const lines = ["Update summary"];
-
-  if (Array.isArray(result.host_targets) && result.host_targets.length > 0) {
-    lines.push(
-      `- Dispatcher hosts checked: ${result.host_targets.map(describeInstallTarget).join(", ")}`,
-    );
-  }
-
-  if (Array.isArray(result.runtime_engines) && result.runtime_engines.length > 0) {
-    lines.push(
-      `- Worker runtimes checked: ${result.runtime_engines.map(describeRuntimeTarget).join(", ")}`,
-    );
-  }
-
-  for (const entry of result.results ?? []) {
-    const details = describeInstallResultDetails(entry);
-
-    lines.push(
-      `- ${describeInstallResultLabel(entry)}: ${describeInstallResultAction(entry)}${
-        details.length > 0 ? ` (${details.join(", ")})` : ""
-      }`,
-    );
-  }
-
-  return `${lines.join("\n")}\n`;
+  const { hosts, support } = partitionSummaryRows(result.results ?? []);
+  const sections = [
+    formatSummarySection("Hosts", hosts),
+    formatSummarySection("Worker Support", support),
+  ];
+  return joinSummarySections("Update summary", sections);
 }
 
 function isMissingExecutableError(error) {
@@ -354,6 +382,7 @@ function formatMissingExecutableMessage(target, error) {
   if (executable) {
     return `${executable} command not found`;
   }
+
   return `${target} command not available on this host`;
 }
 

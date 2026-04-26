@@ -134,14 +134,15 @@ test("install renders a friendly summary for interactive tty output", async () =
 
   assert.equal(exitCode, 0);
   assert.match(rendered, /Install summary/);
-  assert.match(rendered, /Dispatcher hosts: OpenClaw, Hermes Agent/);
-  assert.match(rendered, /Worker runtimes: Claude Code, Codex/);
-  assert.match(rendered, /PREQ MCP endpoint: https:\/\/preq\.example\.com\/mcp/);
-  assert.match(rendered, /OpenClaw: updated \(0\.1\.19 -> 0\.1\.20, restart: openclaw gateway restart\)/);
-  assert.match(rendered, /Hermes Agent: already current \(0\.1\.20\)/);
-  assert.match(rendered, /Claude Code support: already current \(0\.1\.37\)/);
-  assert.match(rendered, /Claude Code MCP: already configured/);
-  assert.match(rendered, /Codex support: installed \(0\.1\.37\)/);
+  assert.match(rendered, /Hosts/);
+  assert.match(rendered, /OpenClaw\s+updated\s+0\.1\.19 -> 0\.1\.20, restart: openclaw gateway restart/);
+  assert.match(rendered, /Hermes Agent\s+current\s+0\.1\.20/);
+  assert.match(rendered, /Worker Support/);
+  assert.match(rendered, /Claude Code\s+current\s+0\.1\.37/);
+  assert.match(rendered, /Codex\s+installed\s+0\.1\.37/);
+  assert.match(rendered, /MCP/);
+  assert.match(rendered, /Endpoint\s+https:\/\/preq\.example\.com\/mcp/);
+  assert.match(rendered, /Claude Code\s+configured/);
   assert.doesNotMatch(rendered, /^\{/m);
 });
 
@@ -347,12 +348,12 @@ test("update renders a friendly summary for interactive tty output", async () =>
   const rendered = stdout.join("");
   assert.equal(exitCode, 1);
   assert.match(rendered, /Update summary/);
-  assert.match(rendered, /Dispatcher hosts checked: OpenClaw, Hermes Agent/);
-  assert.match(rendered, /Worker runtimes checked: Claude Code, Codex, Gemini CLI/);
-  assert.match(rendered, /OpenClaw: not installed/);
-  assert.match(rendered, /Hermes Agent: already current \(0\.1\.22\)/);
-  assert.match(rendered, /Claude Code support: unavailable \(claude command not found\)/);
-  assert.match(rendered, /Codex support: updated \(0\.1\.37 -> 0\.1\.38\)/);
-  assert.match(rendered, /Gemini CLI support: failed \(network timeout\)/);
+  assert.match(rendered, /Hosts/);
+  assert.match(rendered, /OpenClaw\s+not installed/);
+  assert.match(rendered, /Hermes Agent\s+current\s+0\.1\.22/);
+  assert.match(rendered, /Worker Support/);
+  assert.match(rendered, /Claude Code\s+unavailable\s+claude command not found/);
+  assert.match(rendered, /Codex\s+updated\s+0\.1\.37 -> 0\.1\.38/);
+  assert.match(rendered, /Gemini CLI\s+failed\s+network timeout/);
   assert.doesNotMatch(rendered, /^\{/m);
 });
