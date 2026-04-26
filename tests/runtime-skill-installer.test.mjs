@@ -179,7 +179,7 @@ test("installRuntimeWorkerSupport installs the Codex skill when it is missing fo
   ]);
 });
 
-test("installRuntimeWorkerSupport reports Codex not_installed during update-only runs", async () => {
+test("installRuntimeWorkerSupport reports Codex not_enabled during update-only runs when the skill exists for other agents", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-skill-codex-skip-"));
   const skillDir = path.join(tempDir, "preqstation");
   await fs.mkdir(skillDir, { recursive: true });
@@ -222,10 +222,11 @@ test("installRuntimeWorkerSupport reports Codex not_installed during update-only
     {
       ok: true,
       target: "codex",
-      action: "not_installed",
+      action: "not_enabled",
       installed_version: "0.1.35",
       latest_version: "0.1.35",
       skill_path: skillDir,
+      configured_agents: ["Claude Code"],
     },
   ]);
 });

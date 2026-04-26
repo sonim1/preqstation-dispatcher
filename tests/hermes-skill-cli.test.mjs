@@ -142,7 +142,7 @@ test("install renders a friendly summary for interactive tty output", async () =
   assert.match(rendered, /Codex\s+installed\s+0\.1\.37/);
   assert.match(rendered, /MCP/);
   assert.match(rendered, /Endpoint\s+https:\/\/preq\.example\.com\/mcp/);
-  assert.match(rendered, /Claude Code\s+configured/);
+  assert.match(rendered, /Claude Code MCP\s+configured/);
   assert.doesNotMatch(rendered, /^\{/m);
 });
 
@@ -279,6 +279,47 @@ test("update refreshes installed surfaces without installing missing ones", asyn
       }
       return [{ ok: true, target: runtime, action: "not_installed", latest_version: "0.1.38" }];
     },
+    inspectRuntimeMcpServersFn: async ({ runtimes }) => {
+      const [runtime] = runtimes;
+      if (runtime === "claude-code") {
+        return [
+          {
+            ok: true,
+            target: runtime,
+            action: "mcp_configured",
+            server_url: "https://preq.example.com",
+            mcp_url: "https://preq.example.com/mcp",
+            connection_status: "Connected",
+            auth: null,
+          },
+        ];
+      }
+      if (runtime === "codex") {
+        return [
+          {
+            ok: true,
+            target: runtime,
+            action: "mcp_configured",
+            server_url: "https://preq.example.com",
+            mcp_url: "https://preq.example.com/mcp",
+            connection_status: "enabled",
+            auth: "OAuth",
+          },
+        ];
+      }
+      return [
+        {
+          ok: true,
+          target: runtime,
+          action: "mcp_missing",
+          server_url: null,
+          mcp_url: null,
+          connection_status: null,
+          auth: null,
+        },
+      ];
+    },
+    resolveDefaultPreqstationServerUrlFn: async () => "https://preq.example.com",
     dispatchPreqRun: async () => {
       throw new Error("update must not dispatch");
     },
@@ -302,8 +343,13 @@ test("update refreshes installed surfaces without installing missing ones", asyn
       { target: "claude-code", action: "already_current" },
       { target: "codex", action: "updated" },
       { target: "gemini-cli", action: "not_installed" },
+      { target: "claude-code", action: "mcp_configured" },
+      { target: "codex", action: "mcp_configured" },
+      { target: "gemini-cli", action: "mcp_missing" },
     ],
   );
+  assert.equal(result.server_url, "https://preq.example.com");
+  assert.equal(result.mcp_url, "https://preq.example.com/mcp");
 });
 
 test("update renders a friendly summary for interactive tty output", async () => {
@@ -338,22 +384,79 @@ test("update renders a friendly summary for interactive tty output", async () =>
       if (runtime === "codex") {
         return [{ ok: true, target: runtime, action: "updated", installed_version: "0.1.37", latest_version: "0.1.38" }];
       }
-      return [{ ok: false, target: runtime, action: "failed", error: "network timeout" }];
+      return [
+        {
+          ok: true,
+          target: runtime,
+          action: "not_enabled",
+          installed_version: "0.1.38",
+          latest_version: "0.1.38",
+          configured_agents: ["Claude Code"],
+        },
+      ];
     },
+    inspectRuntimeMcpServersFn: async ({ runtimes }) => {
+      const [runtime] = runtimes;
+      if (runtime === "claude-code") {
+        return [
+          {
+            ok: true,
+            target: runtime,
+            action: "mcp_configured",
+            server_url: "https://preq.example.com",
+            mcp_url: "https://preq.example.com/mcp",
+            connection_status: "Connected",
+            auth: null,
+          },
+        ];
+      }
+      if (runtime === "codex") {
+        return [
+          {
+            ok: true,
+            target: runtime,
+            action: "mcp_configured",
+            server_url: "https://preq.example.com",
+            mcp_url: "https://preq.example.com/mcp",
+            connection_status: "enabled",
+            auth: "OAuth",
+          },
+        ];
+      }
+      return [
+        {
+          ok: true,
+          target: runtime,
+          action: "mcp_configured",
+          server_url: "https://preq.example.com",
+          mcp_url: "https://preq.example.com/mcp",
+          connection_status: "Disconnected",
+          auth: null,
+        },
+      ];
+    },
+    resolveDefaultPreqstationServerUrlFn: async () => "https://preq.example.com",
     dispatchPreqRun: async () => {
       throw new Error("update must not dispatch");
     },
   });
 
   const rendered = stdout.join("");
-  assert.equal(exitCode, 1);
+  assert.equal(exitCode, 0);
   assert.match(rendered, /Update summary/);
+  assert.match(rendered, /Settings/);
+  assert.match(rendered, /Server URL\s+https:\/\/preq\.example\.com/);
+  assert.match(rendered, /MCP endpoint\s+https:\/\/preq\.example\.com\/mcp/);
   assert.match(rendered, /Hosts/);
   assert.match(rendered, /OpenClaw\s+not installed/);
   assert.match(rendered, /Hermes Agent\s+current\s+0\.1\.22/);
   assert.match(rendered, /Worker Support/);
   assert.match(rendered, /Claude Code\s+unavailable\s+claude command not found/);
   assert.match(rendered, /Codex\s+updated\s+0\.1\.37 -> 0\.1\.38/);
-  assert.match(rendered, /Gemini CLI\s+failed\s+network timeout/);
+  assert.match(rendered, /Gemini CLI\s+not enabled\s+0\.1\.38, installed globally, not enabled for Gemini CLI/);
+  assert.match(rendered, /MCP/);
+  assert.match(rendered, /Claude Code MCP\s+configured\s+https:\/\/preq\.example\.com\/mcp, status: Connected/);
+  assert.match(rendered, /Codex MCP\s+configured\s+https:\/\/preq\.example\.com\/mcp, status: enabled, auth: OAuth/);
+  assert.match(rendered, /Gemini CLI MCP\s+configured\s+https:\/\/preq\.example\.com\/mcp, status: Disconnected/);
   assert.doesNotMatch(rendered, /^\{/m);
 });

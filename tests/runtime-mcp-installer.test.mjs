@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildPreqstationMcpUrl,
+  inspectRuntimeMcpServers,
   installRuntimeMcpServers,
   normalizePreqstationServerUrl,
   resolveDefaultPreqstationServerUrl,
@@ -261,4 +262,73 @@ test("resolveDefaultPreqstationServerUrl returns null when installed runtimes di
   });
 
   assert.equal(serverUrl, null);
+});
+
+test("inspectRuntimeMcpServers reports configured runtime MCP endpoints with status details", async () => {
+  const calls = [];
+
+  const results = await inspectRuntimeMcpServers({
+    runtimes: ["claude-code", "codex", "gemini-cli"],
+    env: { PATH: process.env.PATH },
+    exec: async (command, args) => {
+      calls.push({ command, args });
+      if (command === "claude" && args.join(" ") === "mcp get preqstation") {
+        return {
+          stdout:
+            'preqstation:\n  Scope: User config\n  Status: ✓ Connected\n  Type: http\n  URL: https://preq.example.com/mcp\n',
+          stderr: "",
+        };
+      }
+      if (command === "codex" && args.join(" ") === "mcp list") {
+        return {
+          stdout:
+            "Name         Url                        Bearer Token Env Var  Status   Auth        \npreqstation  https://preq.example.com/mcp  -                     enabled  OAuth      \n",
+          stderr: "",
+        };
+      }
+      if (command === "gemini" && args.join(" ") === "mcp list") {
+        return {
+          stdout: "",
+          stderr:
+            "Loaded cached credentials.\nConfigured MCP servers:\n\n✗ preqstation: https://preq.example.com/mcp (http) - Disconnected\n",
+        };
+      }
+      throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+    },
+  });
+
+  assert.deepEqual(calls, [
+    { command: "claude", args: ["mcp", "get", "preqstation"] },
+    { command: "codex", args: ["mcp", "list"] },
+    { command: "gemini", args: ["mcp", "list"] },
+  ]);
+  assert.deepEqual(results, [
+    {
+      ok: true,
+      target: "claude-code",
+      action: "mcp_configured",
+      server_url: "https://preq.example.com",
+      mcp_url: "https://preq.example.com/mcp",
+      connection_status: "Connected",
+      auth: null,
+    },
+    {
+      ok: true,
+      target: "codex",
+      action: "mcp_configured",
+      server_url: "https://preq.example.com",
+      mcp_url: "https://preq.example.com/mcp",
+      connection_status: "enabled",
+      auth: "OAuth",
+    },
+    {
+      ok: true,
+      target: "gemini-cli",
+      action: "mcp_configured",
+      server_url: "https://preq.example.com",
+      mcp_url: "https://preq.example.com/mcp",
+      connection_status: "Disconnected",
+      auth: null,
+    },
+  ]);
 });

@@ -31,6 +31,16 @@ const RUNTIME_MCP_INSTALLERS = {
         url: match?.[1] ?? null,
       };
     },
+    parseStatus(stdout) {
+      const match = String(stdout || "").match(/URL:\s+(\S+)/u);
+      const statusMatch = String(stdout || "").match(/Status:\s+([^\n]+)/u);
+      return {
+        exists: Boolean(match?.[1]),
+        url: match?.[1] ?? null,
+        status: normalizeConnectionStatus(statusMatch?.[1] ?? null),
+        auth: null,
+      };
+    },
     isMissingConfigError(error) {
       return /No MCP server found with name:/iu.test(String(error?.stderr || error?.message || error));
     },
@@ -39,11 +49,32 @@ const RUNTIME_MCP_INSTALLERS = {
     command: "codex",
     args: (mcpUrl) => ["mcp", "add", PREQSTATION_MCP_NAME, "--url", mcpUrl],
     inspectArgs: () => ["mcp", "get", PREQSTATION_MCP_NAME],
+    statusInspectArgs: () => ["mcp", "list"],
     parseExistingConfig(stdout) {
       const match = String(stdout || "").match(/url:\s+(\S+)/iu);
       return {
         exists: true,
         url: match?.[1] ?? null,
+      };
+    },
+    parseStatus(stdout) {
+      const line = String(stdout || "")
+        .split(/\r?\n/u)
+        .find((value) => new RegExp(`^${PREQSTATION_MCP_NAME}\\b`, "u").test(value.trim()));
+      if (!line) {
+        return {
+          exists: false,
+          url: null,
+          status: null,
+          auth: null,
+        };
+      }
+      const columns = line.trim().split(/\s{2,}/u);
+      return {
+        exists: columns[0] === PREQSTATION_MCP_NAME,
+        url: columns[1] ?? null,
+        status: normalizeConnectionStatus(columns[3] ?? null),
+        auth: columns[4] ?? null,
       };
     },
     isMissingConfigError(error) {
@@ -64,17 +95,48 @@ const RUNTIME_MCP_INSTALLERS = {
     ],
     inspectArgs: () => ["mcp", "list"],
     parseExistingConfig(stdout) {
-      const text = String(stdout || "");
+      const parsed = parseGeminiMcpStatus(stdout);
       return {
-        exists: new RegExp(`^${PREQSTATION_MCP_NAME}\\b`, "mu").test(text),
-        url: null,
+        exists: parsed.exists,
+        url: parsed.url,
       };
     },
+    parseStatus: parseGeminiMcpStatus,
     isMissingConfigError() {
       return false;
     },
   },
 };
+
+function normalizeConnectionStatus(value) {
+  return String(value || "")
+    .replace(/^[^\p{L}\p{N}]+/u, "")
+    .trim() || null;
+}
+
+function parseGeminiMcpStatus(stdout) {
+  const match = String(stdout || "").match(
+    /^(?:([✓✗])\s+)?preqstation:\s+(\S+)(?:\s+\([^)]+\))?(?:\s+-\s+(.+))?$/mu,
+  );
+  if (!match) {
+    return {
+      exists: false,
+      url: null,
+      status: null,
+      auth: null,
+    };
+  }
+
+  const symbol = match[1] ?? null;
+  const explicitStatus = normalizeConnectionStatus(match[3] ?? null);
+  return {
+    exists: true,
+    url: match[2] ?? null,
+    status:
+      explicitStatus || (symbol === "✓" ? "Connected" : symbol === "✗" ? "Disconnected" : null),
+    auth: null,
+  };
+}
 
 async function inspectRuntimeMcpServer({ installer, env, exec }) {
   if (!installer.inspectArgs || !installer.parseExistingConfig) {
@@ -86,12 +148,44 @@ async function inspectRuntimeMcpServer({ installer, env, exec }) {
 
   try {
     const result = await exec(installer.command, installer.inspectArgs(), { env });
-    return installer.parseExistingConfig(result?.stdout ?? "");
+    return installer.parseExistingConfig(combineCommandOutput(result));
   } catch (error) {
     if (installer.isMissingConfigError?.(error)) {
       return {
         exists: false,
         url: null,
+      };
+    }
+    throw error;
+  }
+}
+
+function combineCommandOutput(result) {
+  return `${result?.stdout ?? ""}${result?.stderr ?? ""}`;
+}
+
+async function inspectRuntimeMcpStatus({ installer, env, exec }) {
+  const args = installer.statusInspectArgs?.() ?? installer.inspectArgs?.() ?? null;
+  const parse = installer.parseStatus ?? installer.parseExistingConfig;
+  if (!args || typeof parse !== "function") {
+    return {
+      exists: false,
+      url: null,
+      status: null,
+      auth: null,
+    };
+  }
+
+  try {
+    const result = await exec(installer.command, args, { env });
+    return parse(combineCommandOutput(result));
+  } catch (error) {
+    if (installer.isMissingConfigError?.(error)) {
+      return {
+        exists: false,
+        url: null,
+        status: null,
+        auth: null,
       };
     }
     throw error;
@@ -179,6 +273,42 @@ export async function resolveDefaultPreqstationServerUrl({
   }
 
   return null;
+}
+
+export async function inspectRuntimeMcpServers({
+  runtimes = SUPPORTED_RUNTIME_TARGETS,
+  env = process.env,
+  exec = execFileAsync,
+} = {}) {
+  const results = [];
+
+  for (const runtime of Array.from(new Set((runtimes ?? []).filter(Boolean)))) {
+    const installer = RUNTIME_MCP_INSTALLERS[runtime];
+    if (!installer) {
+      throw new Error(
+        `Unsupported runtime target: ${runtime}. Expected one of ${SUPPORTED_RUNTIME_TARGETS.join(", ")}`,
+      );
+    }
+
+    const status = await inspectRuntimeMcpStatus({
+      installer,
+      env,
+      exec,
+    });
+    const serverUrl = extractServerUrlFromMcpUrl(status?.url);
+
+    results.push({
+      ok: true,
+      target: runtime,
+      action: status.exists ? "mcp_configured" : "mcp_missing",
+      server_url: serverUrl,
+      mcp_url: status?.url ?? null,
+      connection_status: status?.status ?? null,
+      auth: status?.auth ?? null,
+    });
+  }
+
+  return results;
 }
 
 export async function installRuntimeMcpServers({

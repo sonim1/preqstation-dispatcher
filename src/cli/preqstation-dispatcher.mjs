@@ -19,6 +19,11 @@ import {
 } from "../hermes-skill-installer.mjs";
 import { installOpenClawPlugin } from "../openclaw-installer.mjs";
 import { installRuntimeWorkerSupport } from "../runtime-skill-installer.mjs";
+import {
+  buildPreqstationMcpUrl,
+  inspectRuntimeMcpServers,
+  resolveDefaultPreqstationServerUrl,
+} from "../runtime-mcp-installer.mjs";
 
 const UPDATE_HOST_TARGETS = ["openclaw", "hermes"];
 const UPDATE_RUNTIME_TARGETS = ["claude-code", "codex", "gemini-cli"];
@@ -213,7 +218,12 @@ function describeRuntimeTarget(target) {
 }
 
 function describeInstallResultLabel(result) {
-  if (result.action === "mcp_installed" || result.action === "mcp_already_configured") {
+  if (
+    result.action === "mcp_installed" ||
+    result.action === "mcp_already_configured" ||
+    result.action === "mcp_configured" ||
+    result.action === "mcp_missing"
+  ) {
     return `${describeRuntimeTarget(result.target)} MCP`;
   }
   if (result.target === "openclaw" || result.target === "hermes") {
@@ -229,8 +239,17 @@ function describeInstallResultAction(result) {
   if (result.action === "mcp_already_configured") {
     return "configured";
   }
+  if (result.action === "mcp_configured") {
+    return "configured";
+  }
+  if (result.action === "mcp_missing") {
+    return "not configured";
+  }
   if (result.action === "not_installed") {
     return "not installed";
+  }
+  if (result.action === "not_enabled") {
+    return "not enabled";
   }
   if (result.action === "unavailable") {
     return "unavailable";
@@ -263,6 +282,10 @@ function describeInstallResultVersion(result) {
     return currentVersion;
   }
 
+  if (result.action === "not_enabled" && currentVersion) {
+    return currentVersion;
+  }
+
   if (result.action === "installed" && nextVersion) {
     return nextVersion;
   }
@@ -275,6 +298,18 @@ function describeInstallResultDetails(result) {
   const version = describeInstallResultVersion(result);
   if (version) {
     details.push(version);
+  }
+  if (result.action === "not_enabled") {
+    details.push(`installed globally, not enabled for ${describeRuntimeTarget(result.target)}`);
+  }
+  if (result.mcp_url) {
+    details.push(result.mcp_url);
+  }
+  if (result.connection_status) {
+    details.push(`status: ${result.connection_status}`);
+  }
+  if (result.auth) {
+    details.push(`auth: ${result.auth}`);
   }
   if (result.restart_command) {
     details.push(`restart: ${result.restart_command}`);
@@ -313,16 +348,22 @@ function partitionSummaryRows(entries = []) {
   const mcp = [];
 
   for (const entry of entries) {
+    const isMcpRow =
+      entry.action === "mcp_installed" ||
+      entry.action === "mcp_already_configured" ||
+      entry.action === "mcp_configured" ||
+      entry.action === "mcp_missing";
     const row = {
-      label:
-        entry.target === "openclaw" || entry.target === "hermes"
+      label: isMcpRow
+        ? describeInstallResultLabel(entry)
+        : entry.target === "openclaw" || entry.target === "hermes"
           ? describeInstallTarget(entry.target)
           : describeRuntimeTarget(entry.target),
       status: describeInstallResultAction(entry),
       details: describeInstallResultDetails(entry).join(", "),
     };
 
-    if (entry.action === "mcp_installed" || entry.action === "mcp_already_configured") {
+    if (isMcpRow) {
       mcp.push(row);
       continue;
     }
@@ -365,10 +406,20 @@ function formatInteractiveInstallSummary(result) {
 }
 
 function formatInteractiveUpdateSummary(result) {
-  const { hosts, support } = partitionSummaryRows(result.results ?? []);
+  const { hosts, support, mcp } = partitionSummaryRows(result.results ?? []);
   const sections = [
+    formatSummarySection(
+      "Settings",
+      [
+        ...(result.server_url
+          ? [{ label: "Server URL", status: result.server_url, details: "" }]
+          : []),
+        ...(result.mcp_url ? [{ label: "MCP endpoint", status: result.mcp_url, details: "" }] : []),
+      ],
+    ),
     formatSummarySection("Hosts", hosts),
     formatSummarySection("Worker Support", support),
+    formatSummarySection("MCP", mcp),
   ];
   return joinSummarySections("Update summary", sections);
 }
@@ -514,6 +565,8 @@ async function handleUpdateCommand({
   syncHermesSkillFn = syncHermesSkill,
   installOpenClawPluginFn = installOpenClawPlugin,
   installRuntimeWorkerSupportFn = installRuntimeWorkerSupport,
+  inspectRuntimeMcpServersFn = inspectRuntimeMcpServers,
+  resolveDefaultPreqstationServerUrlFn = resolveDefaultPreqstationServerUrl,
 }) {
   const { options, positional } = parseOptions(args);
   if (positional.length > 0) {
@@ -561,12 +614,30 @@ async function handleUpdateCommand({
     results.push(result);
   }
 
+  for (const runtime of UPDATE_RUNTIME_TARGETS) {
+    const result = await runSafeUpdateTarget(runtime, async () => {
+      const [entry] = await inspectRuntimeMcpServersFn({
+        runtimes: [runtime],
+        env,
+      });
+      return entry;
+    });
+    results.push(result);
+  }
+
+  const serverUrl = await resolveDefaultPreqstationServerUrlFn({
+    runtimes: UPDATE_RUNTIME_TARGETS,
+    env,
+  }).catch(() => null);
+
   const payload = {
     ok: results.every((entry) => entry?.ok !== false),
     action: "updated",
     interactive: true,
     host_targets: UPDATE_HOST_TARGETS,
     runtime_engines: UPDATE_RUNTIME_TARGETS,
+    server_url: serverUrl,
+    mcp_url: serverUrl ? buildPreqstationMcpUrl(serverUrl) : null,
     results,
   };
 
@@ -627,6 +698,8 @@ export async function runDispatcherCli({
   syncHermesSkillFn = syncHermesSkill,
   installOpenClawPluginFn = installOpenClawPlugin,
   installRuntimeWorkerSupportFn = installRuntimeWorkerSupport,
+  inspectRuntimeMcpServersFn = inspectRuntimeMcpServers,
+  resolveDefaultPreqstationServerUrlFn = resolveDefaultPreqstationServerUrl,
 }) {
   const [command, ...args] = argv;
 
@@ -655,6 +728,8 @@ export async function runDispatcherCli({
         syncHermesSkillFn,
         installOpenClawPluginFn,
         installRuntimeWorkerSupportFn,
+        inspectRuntimeMcpServersFn,
+        resolveDefaultPreqstationServerUrlFn,
       });
     }
 

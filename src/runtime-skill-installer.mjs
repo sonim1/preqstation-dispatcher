@@ -159,17 +159,21 @@ async function ensureAgentSkill({
   const runtimeConfig = RUNTIME_SKILL_TARGETS[runtime];
   const installedSkills = await listInstalledSkills({ env, exec });
   const entry = installedSkills.find((skill) => skill?.name === PREQSTATION_SKILL_NAME) ?? null;
-  const agentInstalled = Boolean(entry?.agents?.includes(runtimeConfig.agentName));
+  const configuredAgents = Array.isArray(entry?.agents)
+    ? entry.agents.filter((agent) => typeof agent === "string" && agent.trim())
+    : [];
+  const agentInstalled = configuredAgents.includes(runtimeConfig.agentName);
   const installedVersion = entry?.path ? await readInstalledSkillVersion(entry.path, readFile) : null;
 
   if (!agentInstalled && !installMissing) {
     return {
       ok: true,
       target: runtime,
-      action: "not_installed",
+      action: entry?.path ? "not_enabled" : "not_installed",
       installed_version: installedVersion,
       latest_version: latestVersion,
       skill_path: entry?.path ?? null,
+      configured_agents: configuredAgents,
     };
   }
 
