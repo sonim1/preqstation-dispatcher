@@ -95,6 +95,56 @@ test("install runs the interactive wizard when no target is provided", async () 
   assert.equal(result.mcp_url, "https://preq.example.com/mcp");
 });
 
+test("install renders a friendly summary for interactive tty output", async () => {
+  const stdout = [];
+
+  const exitCode = await runDispatcherCli({
+    argv: ["install"],
+    stdout: { write: (value) => stdout.push(value), isTTY: true },
+    stderr: { write: () => {} },
+    runInstallWizard: async () => ({
+      ok: true,
+      action: "installed",
+      interactive: true,
+      install_targets: ["openclaw", "hermes"],
+      runtime_engines: ["claude-code", "codex"],
+      preqstation_server_url: "https://preq.example.com",
+      mcp_url: "https://preq.example.com/mcp",
+      results: [
+        {
+          ok: true,
+          target: "openclaw",
+          action: "updated",
+          installed_version: "0.1.19",
+          package_version: "0.1.20",
+          restart_command: "openclaw gateway restart",
+        },
+        { ok: true, target: "hermes", action: "already_current", version: "0.1.20" },
+        { ok: true, target: "claude-code", action: "already_current", installed_version: "0.1.37" },
+        { ok: true, target: "claude-code", action: "mcp_already_configured" },
+        { ok: true, target: "codex", action: "installed", latest_version: "0.1.37" },
+      ],
+    }),
+    dispatchPreqRun: async () => {
+      throw new Error("install must not dispatch");
+    },
+  });
+
+  const rendered = stdout.join("");
+
+  assert.equal(exitCode, 0);
+  assert.match(rendered, /Install summary/);
+  assert.match(rendered, /Dispatcher hosts: OpenClaw, Hermes Agent/);
+  assert.match(rendered, /Worker runtimes: Claude Code, Codex/);
+  assert.match(rendered, /PREQ MCP endpoint: https:\/\/preq\.example\.com\/mcp/);
+  assert.match(rendered, /OpenClaw: updated \(0\.1\.19 -> 0\.1\.20, restart: openclaw gateway restart\)/);
+  assert.match(rendered, /Hermes Agent: already current \(0\.1\.20\)/);
+  assert.match(rendered, /Claude Code support: already current \(0\.1\.37\)/);
+  assert.match(rendered, /Claude Code MCP: already configured/);
+  assert.match(rendered, /Codex support: installed \(0\.1\.37\)/);
+  assert.doesNotMatch(rendered, /^\{/m);
+});
+
 test("sync hermes refuses user-modified skills unless forced", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-hermes-sync-"));
   const hermesHome = path.join(tempDir, ".hermes");

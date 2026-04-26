@@ -175,13 +175,124 @@ function printUsage(stdout) {
       "  preqstation-dispatcher setup set PROJ /absolute/path/to/project",
       "  preqstation-dispatcher setup auto PROJ=https://github.com/example/project",
       "  preqstation-dispatcher setup status",
-      "  preqstation-dispatcher install [hermes|openclaw]",
+      "  preqstation-dispatcher install [hermes|openclaw] [--json]",
       "  preqstation-dispatcher install",
       "  preqstation-dispatcher sync hermes [--force]",
       "  preqstation-dispatcher status hermes",
       "",
     ].join("\n"),
   );
+}
+
+function describeInstallTarget(target) {
+  if (target === "openclaw") {
+    return "OpenClaw";
+  }
+  if (target === "hermes") {
+    return "Hermes Agent";
+  }
+  return target;
+}
+
+function describeRuntimeTarget(target) {
+  if (target === "claude-code") {
+    return "Claude Code";
+  }
+  if (target === "codex") {
+    return "Codex";
+  }
+  if (target === "gemini-cli") {
+    return "Gemini CLI";
+  }
+  return target;
+}
+
+function describeInstallResultLabel(result) {
+  if (result.action === "mcp_installed" || result.action === "mcp_already_configured") {
+    return `${describeRuntimeTarget(result.target)} MCP`;
+  }
+  if (result.target === "openclaw" || result.target === "hermes") {
+    return describeInstallTarget(result.target);
+  }
+  return `${describeRuntimeTarget(result.target)} support`;
+}
+
+function describeInstallResultAction(result) {
+  if (result.action === "mcp_installed") {
+    return "registered";
+  }
+  if (result.action === "mcp_already_configured") {
+    return "already configured";
+  }
+  if (result.action === "already_current") {
+    return "already current";
+  }
+  if (result.action === "updated") {
+    return "updated";
+  }
+  return "installed";
+}
+
+function describeInstallResultVersion(result) {
+  const nextVersion = result.package_version ?? result.latest_version ?? result.version ?? null;
+  const currentVersion = result.installed_version ?? null;
+
+  if (result.action === "updated" && currentVersion && nextVersion && currentVersion !== nextVersion) {
+    return `${currentVersion} -> ${nextVersion}`;
+  }
+
+  if (result.version) {
+    return result.version;
+  }
+
+  if (result.action === "already_current" && currentVersion) {
+    return currentVersion;
+  }
+
+  if (result.action === "installed" && nextVersion) {
+    return nextVersion;
+  }
+
+  return null;
+}
+
+function formatInteractiveInstallSummary(result) {
+  const lines = ["Install summary"];
+
+  if (Array.isArray(result.install_targets) && result.install_targets.length > 0) {
+    lines.push(
+      `- Dispatcher hosts: ${result.install_targets.map(describeInstallTarget).join(", ")}`,
+    );
+  }
+
+  if (Array.isArray(result.runtime_engines) && result.runtime_engines.length > 0) {
+    lines.push(
+      `- Worker runtimes: ${result.runtime_engines.map(describeRuntimeTarget).join(", ")}`,
+    );
+  }
+
+  if (result.mcp_url) {
+    lines.push(`- PREQ MCP endpoint: ${result.mcp_url}`);
+  }
+
+  for (const entry of result.results ?? []) {
+    const details = [];
+    const version = describeInstallResultVersion(entry);
+    if (version) {
+      details.push(version);
+    }
+    if (entry.restart_command) {
+      details.push(`restart: ${entry.restart_command}`);
+    }
+
+    lines.push(
+      `- ${describeInstallResultLabel(entry)}: ${describeInstallResultAction(entry)}${
+        details.length > 0 ? ` (${details.join(", ")})` : ""
+      }`,
+    );
+  }
+
+  return `${lines.join("\n")}\n`;
 }
 
 async function handleSetup({ args, stdout, env }) {
@@ -252,16 +363,17 @@ async function handleInstallCommand({
   const [target] = positional;
 
   if (!target) {
-    stdout.write(
-      `${JSON.stringify(
-        await runInstallWizard({
-          inputStream: stdin,
-          outputStream: stdout,
-          env,
-          force: options.force === "true",
-        }),
-      )}\n`,
-    );
+    const result = await runInstallWizard({
+      inputStream: stdin,
+      outputStream: stdout,
+      env,
+      force: options.force === "true",
+    });
+    if (stdout?.isTTY && result?.interactive && options.json !== "true") {
+      stdout.write(formatInteractiveInstallSummary(result));
+      return;
+    }
+    stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
 
