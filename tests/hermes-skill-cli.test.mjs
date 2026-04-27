@@ -146,6 +146,79 @@ test("install renders a friendly summary for interactive tty output", async () =
   assert.doesNotMatch(rendered, /^\{/m);
 });
 
+test("install summary surfaces when the local repo is newer than the published OpenClaw plugin", async () => {
+  const stdout = [];
+
+  const exitCode = await runDispatcherCli({
+    argv: ["install"],
+    stdout: { write: (value) => stdout.push(value), isTTY: true },
+    stderr: { write: () => {} },
+    runInstallWizard: async () => ({
+      ok: true,
+      action: "installed",
+      interactive: true,
+      install_targets: ["openclaw"],
+      runtime_engines: [],
+      preqstation_server_url: null,
+      mcp_url: null,
+      results: [
+        {
+          ok: true,
+          target: "openclaw",
+          action: "already_current",
+          installed_version: "0.1.21",
+          package_version: "0.1.21",
+          local_package_version: "0.1.24",
+          restart_command: "openclaw gateway restart",
+        },
+      ],
+    }),
+    dispatchPreqRun: async () => {
+      throw new Error("install must not dispatch");
+    },
+  });
+
+  const rendered = stdout.join("");
+
+  assert.equal(exitCode, 0);
+  assert.match(rendered, /OpenClaw\s+current\s+0\.1\.21, restart: openclaw gateway restart, local repo: 0\.1\.24 unpublished/);
+});
+
+test("install returns a non-zero exit code when the interactive wizard reports failed runtime setup", async () => {
+  const stdout = [];
+
+  const exitCode = await runDispatcherCli({
+    argv: ["install"],
+    stdout: { write: (value) => stdout.push(value) },
+    stderr: { write: () => {} },
+    runInstallWizard: async () => ({
+      ok: false,
+      action: "installed",
+      interactive: true,
+      install_targets: ["hermes"],
+      runtime_engines: ["codex"],
+      preqstation_server_url: "https://preq.example.com",
+      mcp_url: "https://preq.example.com/mcp",
+      results: [
+        { ok: true, target: "hermes", action: "installed" },
+        {
+          ok: false,
+          target: "codex",
+          action: "failed",
+          error: "preqstation skill did not become enabled for Codex after install",
+        },
+      ],
+    }),
+    dispatchPreqRun: async () => {
+      throw new Error("install must not dispatch");
+    },
+  });
+
+  const result = JSON.parse(stdout.join(""));
+  assert.equal(exitCode, 1);
+  assert.equal(result.ok, false);
+});
+
 test("sync hermes refuses user-modified skills unless forced", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-hermes-sync-"));
   const hermesHome = path.join(tempDir, ".hermes");

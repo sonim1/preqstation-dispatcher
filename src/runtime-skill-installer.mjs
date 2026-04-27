@@ -55,6 +55,28 @@ async function listInstalledSkills({ env, exec }) {
   return Array.isArray(parsed) ? parsed : [];
 }
 
+function getConfiguredAgents(entry) {
+  return Array.isArray(entry?.agents)
+    ? entry.agents.filter((agent) => typeof agent === "string" && agent.trim())
+    : [];
+}
+
+async function inspectAgentSkillState({ runtime, env, exec, readFile }) {
+  const runtimeConfig = RUNTIME_SKILL_TARGETS[runtime];
+  const installedSkills = await listInstalledSkills({ env, exec });
+  const entry = installedSkills.find((skill) => skill?.name === PREQSTATION_SKILL_NAME) ?? null;
+  const configuredAgents = getConfiguredAgents(entry);
+  const agentInstalled = configuredAgents.includes(runtimeConfig.agentName);
+  const installedVersion = entry?.path ? await readInstalledSkillVersion(entry.path, readFile) : null;
+
+  return {
+    entry,
+    configuredAgents,
+    agentInstalled,
+    installedVersion,
+  };
+}
+
 async function readInstalledSkillVersion(skillPath, readFile = fs.readFile) {
   const packageJsonPath = `${skillPath}/package.json`;
   try {
@@ -157,13 +179,8 @@ async function ensureAgentSkill({
   installMissing,
 }) {
   const runtimeConfig = RUNTIME_SKILL_TARGETS[runtime];
-  const installedSkills = await listInstalledSkills({ env, exec });
-  const entry = installedSkills.find((skill) => skill?.name === PREQSTATION_SKILL_NAME) ?? null;
-  const configuredAgents = Array.isArray(entry?.agents)
-    ? entry.agents.filter((agent) => typeof agent === "string" && agent.trim())
-    : [];
-  const agentInstalled = configuredAgents.includes(runtimeConfig.agentName);
-  const installedVersion = entry?.path ? await readInstalledSkillVersion(entry.path, readFile) : null;
+  const initialState = await inspectAgentSkillState({ runtime, env, exec, readFile });
+  const { entry, configuredAgents, agentInstalled, installedVersion } = initialState;
 
   if (!agentInstalled && !installMissing) {
     return {
@@ -190,13 +207,26 @@ async function ensureAgentSkill({
 
   if (agentInstalled) {
     await exec("npx", ["skills", "update", PREQSTATION_SKILL_NAME, "-g", "-y"], { env });
+    const refreshedState = await inspectAgentSkillState({ runtime, env, exec, readFile });
+    if (!refreshedState.agentInstalled) {
+      return {
+        ok: false,
+        target: runtime,
+        action: "failed",
+        installed_version: refreshedState.installedVersion ?? installedVersion,
+        latest_version: latestVersion,
+        skill_path: refreshedState.entry?.path ?? entry?.path ?? null,
+        configured_agents: refreshedState.configuredAgents,
+        error: `preqstation skill did not stay enabled for ${runtimeConfig.agentName} after update`,
+      };
+    }
     return {
       ok: true,
       target: runtime,
       action: "updated",
-      installed_version: installedVersion,
+      installed_version: refreshedState.installedVersion ?? installedVersion,
       latest_version: latestVersion,
-      skill_path: entry.path,
+      skill_path: refreshedState.entry?.path ?? entry.path,
     };
   }
 
@@ -205,12 +235,26 @@ async function ensureAgentSkill({
     ["skills", "add", PREQSTATION_SKILL_REPO, "-g", "-a", runtimeConfig.agentId, "-y"],
     { env },
   );
+  const refreshedState = await inspectAgentSkillState({ runtime, env, exec, readFile });
+  if (!refreshedState.agentInstalled) {
+    return {
+      ok: false,
+      target: runtime,
+      action: "failed",
+      installed_version: refreshedState.installedVersion,
+      latest_version: latestVersion,
+      skill_path: refreshedState.entry?.path ?? entry?.path ?? null,
+      configured_agents: refreshedState.configuredAgents,
+      error: `preqstation skill did not become enabled for ${runtimeConfig.agentName} after install`,
+    };
+  }
   return {
     ok: true,
     target: runtime,
     action: "installed",
-    installed_version: null,
+    installed_version: refreshedState.installedVersion,
     latest_version: latestVersion,
+    skill_path: refreshedState.entry?.path ?? entry?.path ?? null,
   };
 }
 

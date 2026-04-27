@@ -27,6 +27,7 @@ import {
 
 const UPDATE_HOST_TARGETS = ["openclaw", "hermes"];
 const UPDATE_RUNTIME_TARGETS = ["claude-code", "codex", "gemini-cli"];
+const PACKAGE_JSON_FILE = new URL("../../package.json", import.meta.url);
 
 function getDispatchHome(env) {
   return (
@@ -94,6 +95,11 @@ function normalizeProjectKey(value) {
 
 async function readJsonFile(filePath) {
   return JSON.parse(await fs.readFile(filePath, "utf8"));
+}
+
+async function readPackageVersion() {
+  const pkg = JSON.parse(await fs.readFile(PACKAGE_JSON_FILE, "utf8"));
+  return String(pkg?.version || "").trim();
 }
 
 async function readProjectMappings(mappingPath) {
@@ -189,6 +195,8 @@ function printUsage(stdout) {
       "  preqstation-dispatcher update [--force] [--json]",
       "  preqstation-dispatcher sync hermes [--force]",
       "  preqstation-dispatcher status hermes",
+      "  preqstation-dispatcher --version",
+      "  preqstation-dispatcher -v",
       "",
     ].join("\n"),
   );
@@ -313,6 +321,13 @@ function describeInstallResultDetails(result) {
   }
   if (result.restart_command) {
     details.push(`restart: ${result.restart_command}`);
+  }
+  if (
+    result.local_package_version &&
+    result.package_version &&
+    result.local_package_version !== result.package_version
+  ) {
+    details.push(`local repo: ${result.local_package_version} unpublished`);
   }
   if (result.error) {
     details.push(result.error);
@@ -534,10 +549,10 @@ async function handleInstallCommand({
     });
     if (stdout?.isTTY && result?.interactive && options.json !== "true") {
       stdout.write(formatInteractiveInstallSummary(result));
-      return;
+      return result?.ok === false ? 1 : 0;
     }
     stdout.write(`${JSON.stringify(result)}\n`);
-    return;
+    return result?.ok === false ? 1 : 0;
   }
 
   if (target === "hermes") {
@@ -546,12 +561,13 @@ async function handleInstallCommand({
       force: options.force === "true",
     });
     stdout.write(`${JSON.stringify(result)}\n`);
-    return;
+    return result?.ok === false ? 1 : 0;
   }
 
   if (target === "openclaw") {
-    stdout.write(`${JSON.stringify(await installOpenClawPlugin({ env }))}\n`);
-    return;
+    const result = await installOpenClawPlugin({ env });
+    stdout.write(`${JSON.stringify(result)}\n`);
+    return result?.ok === false ? 1 : 0;
   }
 
   throw new Error("Usage: preqstation-dispatcher install [hermes|openclaw]");
@@ -709,14 +725,18 @@ export async function runDispatcherCli({
       return 0;
     }
 
+    if (command === "--version" || command === "-v" || command === "version") {
+      stdout.write(`${await readPackageVersion()}\n`);
+      return 0;
+    }
+
     if (command === "setup") {
       await handleSetup({ args, stdout, env });
       return 0;
     }
 
     if (command === "install") {
-      await handleInstallCommand({ args, stdin, stdout, env, runInstallWizard });
-      return 0;
+      return handleInstallCommand({ args, stdin, stdout, env, runInstallWizard });
     }
 
     if (command === "update") {

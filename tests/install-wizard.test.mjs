@@ -216,3 +216,36 @@ test("runInstallWizard reports already current host installs without pretending 
   assert.match(output.join(""), /OpenClaw\s+current/);
   assert.match(output.join(""), /Hermes Agent\s+current/);
 });
+
+test("runInstallWizard reports failure when runtime support post-check does not stick", async () => {
+  const output = [];
+
+  const result = await runInstallWizard({
+    env: { PATH: process.env.PATH },
+    outputStream: { write: (value) => output.push(value) },
+    promptInstallPlanFn: async () => ({
+      installTargets: [],
+      runtimeEngines: ["codex"],
+      preqstationServerUrl: "https://preq.example.com",
+      mcpUrl: "https://preq.example.com/mcp",
+    }),
+    installRuntimeWorkerSupportFn: async () => [
+      {
+        ok: false,
+        target: "codex",
+        action: "failed",
+        error: "preqstation skill did not become enabled for Codex after install",
+      },
+    ],
+    installRuntimeMcpServersFn: async () => [
+      {
+        ok: true,
+        target: "codex",
+        action: "mcp_already_configured",
+      },
+    ],
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(output.join(""), /Codex skill\s+failed/);
+});

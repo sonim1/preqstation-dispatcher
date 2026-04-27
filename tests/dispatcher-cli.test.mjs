@@ -7,6 +7,39 @@ import path from "node:path";
 
 import { runDispatcherCli } from "../src/cli/preqstation-dispatcher.mjs";
 
+const packageJsonPath = new URL("../package.json", import.meta.url);
+
+async function readCurrentPackageVersion() {
+  const pkg = JSON.parse(await fs.readFile(packageJsonPath, "utf8"));
+  return pkg.version;
+}
+
+test("prints the package version for --version", async () => {
+  const stdout = [];
+
+  const exitCode = await runDispatcherCli({
+    argv: ["--version"],
+    stdout: { write: (value) => stdout.push(value) },
+    stderr: { write: () => {} },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.equal(stdout.join(""), `${await readCurrentPackageVersion()}\n`);
+});
+
+test("prints the package version for -v", async () => {
+  const stdout = [];
+
+  const exitCode = await runDispatcherCli({
+    argv: ["-v"],
+    stdout: { write: (value) => stdout.push(value) },
+    stderr: { write: () => {} },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.equal(stdout.join(""), `${await readCurrentPackageVersion()}\n`);
+});
+
 test("run-json dispatches a Hermes payload through the shared runtime", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-dispatcher-cli-"));
   const payloadPath = path.join(tempDir, "payload.json");

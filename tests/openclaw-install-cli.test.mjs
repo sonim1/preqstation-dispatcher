@@ -14,12 +14,32 @@ async function readCurrentPackageVersion() {
   return pkg.version;
 }
 
+async function writeFakeNpmBin(binDir, version) {
+  const npmBin = path.join(binDir, "npm");
+  await fs.writeFile(
+    npmBin,
+    [
+      "#!/bin/sh",
+      'if [ "$1 $2 $3 $4" = "view @sonim1/preqstation-dispatcher version --json" ]; then',
+      `  printf '"${version}"\\n'`,
+      "  exit 0",
+      "fi",
+      'echo "unexpected npm invocation: $*" >&2',
+      "exit 1",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await fs.chmod(npmBin, 0o755);
+}
+
 test("install openclaw runs the OpenClaw plugin install command", async () => {
   const currentPackageVersion = await readCurrentPackageVersion();
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-openclaw-install-"));
   const binDir = path.join(tempDir, "bin");
   const logFile = path.join(tempDir, "openclaw-args.log");
   await fs.mkdir(binDir, { recursive: true });
+  await writeFakeNpmBin(binDir, currentPackageVersion);
   const openclawBin = path.join(binDir, "openclaw");
   await fs.writeFile(
     openclawBin,
@@ -73,6 +93,7 @@ test("install openclaw updates the plugin when it already exists", async () => {
   const binDir = path.join(tempDir, "bin");
   const logFile = path.join(tempDir, "openclaw-args.log");
   await fs.mkdir(binDir, { recursive: true });
+  await writeFakeNpmBin(binDir, currentPackageVersion);
   const openclawBin = path.join(binDir, "openclaw");
   await fs.writeFile(
     openclawBin,
@@ -132,6 +153,7 @@ test("install openclaw reports already_current when the installed plugin version
   const binDir = path.join(tempDir, "bin");
   const logFile = path.join(tempDir, "openclaw-args.log");
   await fs.mkdir(binDir, { recursive: true });
+  await writeFakeNpmBin(binDir, currentPackageVersion);
   const openclawBin = path.join(binDir, "openclaw");
   await fs.writeFile(
     openclawBin,
@@ -188,6 +210,7 @@ test("installOpenClawPlugin reports not_installed during update-only runs", asyn
   const binDir = path.join(tempDir, "bin");
   const logFile = path.join(tempDir, "openclaw-args.log");
   await fs.mkdir(binDir, { recursive: true });
+  await writeFakeNpmBin(binDir, currentPackageVersion);
   const openclawBin = path.join(binDir, "openclaw");
   await fs.writeFile(
     openclawBin,
@@ -222,5 +245,55 @@ test("installOpenClawPlugin reports not_installed during update-only runs", asyn
     plugin_id: "preqstation-dispatcher",
     restart_command: "openclaw gateway restart",
     package_version: currentPackageVersion,
+  });
+});
+
+test("installOpenClawPlugin treats the plugin as current when npm latest matches the installed version even if the local repo is newer", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-openclaw-published-current-"));
+  const binDir = path.join(tempDir, "bin");
+  const logFile = path.join(tempDir, "openclaw-args.log");
+  await fs.mkdir(binDir, { recursive: true });
+  await writeFakeNpmBin(binDir, "0.1.21");
+  const openclawBin = path.join(binDir, "openclaw");
+  await fs.writeFile(
+    openclawBin,
+    [
+      "#!/bin/sh",
+      `printf '%s\\n' \"$*\" >> \"${logFile}\"`,
+      'if [ "$1 $2 $3" = "plugins inspect preqstation-dispatcher" ]; then',
+      '  cat <<\'EOF\'',
+      "PREQSTATION OpenClaw Dispatch",
+      "id: preqstation-dispatcher",
+      "Version: 0.1.21",
+      "Recorded version: 0.1.21",
+      "EOF",
+      "  exit 0",
+      "fi",
+      'echo "unexpected openclaw invocation: $*" >&2',
+      "exit 1",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await fs.chmod(openclawBin, 0o755);
+
+  const result = await installOpenClawPlugin({
+    env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+  });
+
+  assert.deepEqual(
+    (await fs.readFile(logFile, "utf8")).trim().split("\n"),
+    ["plugins inspect preqstation-dispatcher"],
+  );
+  assert.deepEqual(result, {
+    ok: true,
+    target: "openclaw",
+    action: "already_current",
+    package: "@sonim1/preqstation-dispatcher",
+    plugin_id: "preqstation-dispatcher",
+    restart_command: "openclaw gateway restart",
+    installed_version: "0.1.21",
+    package_version: "0.1.21",
+    local_package_version: await readCurrentPackageVersion(),
   });
 });

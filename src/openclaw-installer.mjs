@@ -33,6 +33,32 @@ async function readPackageVersion() {
   return pkg.version;
 }
 
+function parsePublishedPackageVersion(stdout) {
+  const text = String(stdout || "").trim();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    return typeof parsed === "string" && parsed.trim() ? parsed.trim() : null;
+  } catch {
+    return text.split(/\r?\n/u)[0]?.trim() || null;
+  }
+}
+
+async function readPublishedPackageVersion({
+  env = process.env,
+  exec = execFileAsync,
+} = {}) {
+  try {
+    const result = await exec("npm", ["view", PACKAGE_NAME, "version", "--json"], { env });
+    return parsePublishedPackageVersion(result?.stdout ?? "");
+  } catch {
+    return null;
+  }
+}
+
 function parseInstalledPluginVersion(stdout) {
   const text = String(stdout || "");
   const recordedMatch = text.match(/Recorded version:\s+(\S+)/iu);
@@ -51,7 +77,16 @@ export async function installOpenClawPlugin({
   exec = execFileAsync,
   updateOnly = false,
 } = {}) {
-  const packageVersion = await readPackageVersion();
+  const localPackageVersion = await readPackageVersion();
+  const packageVersion =
+    (await readPublishedPackageVersion({
+      env,
+      exec,
+    })) || localPackageVersion;
+  const localVersionDetails =
+    localPackageVersion !== packageVersion
+      ? { local_package_version: localPackageVersion }
+      : {};
   try {
     const inspectResult = await exec("openclaw", ["plugins", "inspect", PLUGIN_ID], { env });
     const installedVersion = parseInstalledPluginVersion(inspectResult?.stdout ?? "");
@@ -65,6 +100,7 @@ export async function installOpenClawPlugin({
         restart_command: "openclaw gateway restart",
         installed_version: installedVersion,
         package_version: packageVersion,
+        ...localVersionDetails,
       };
     }
 
@@ -78,6 +114,7 @@ export async function installOpenClawPlugin({
       restart_command: "openclaw gateway restart",
       installed_version: installedVersion,
       package_version: packageVersion,
+      ...localVersionDetails,
     };
   } catch (inspectError) {
     if (!isPluginNotInstalledError(inspectError)) {
@@ -92,6 +129,7 @@ export async function installOpenClawPlugin({
         plugin_id: PLUGIN_ID,
         restart_command: "openclaw gateway restart",
         package_version: packageVersion,
+        ...localVersionDetails,
       };
     }
   }
@@ -116,6 +154,7 @@ export async function installOpenClawPlugin({
       plugin_id: PLUGIN_ID,
       restart_command: "openclaw gateway restart",
       package_version: packageVersion,
+      ...localVersionDetails,
     };
   } catch (error) {
     if (!isPluginAlreadyInstalledError(error)) {
@@ -131,6 +170,7 @@ export async function installOpenClawPlugin({
       plugin_id: PLUGIN_ID,
       restart_command: "openclaw gateway restart",
       package_version: packageVersion,
+      ...localVersionDetails,
     };
   }
 }

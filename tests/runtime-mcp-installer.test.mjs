@@ -202,12 +202,39 @@ test("resolveDefaultPreqstationServerUrl prefers an explicit PREQSTATION_SERVER_
   assert.equal(serverUrl, "https://env-preq.example.com");
 });
 
+test("resolveDefaultPreqstationServerUrl falls back to the shared dispatcher OAuth cache", async () => {
+  const serverUrl = await resolveDefaultPreqstationServerUrl({
+    runtimes: ["claude-code", "codex"],
+    env: {
+      PATH: process.env.PATH,
+      HOME: "/Users/tester",
+    },
+    readFile: async (filePath, encoding) => {
+      assert.equal(filePath, "/Users/tester/.preqstation-dispatch/oauth.json");
+      assert.equal(encoding, "utf8");
+      return JSON.stringify({
+        discoveryState: {
+          authorizationServerUrl: "https://oauth-preq.example.com/",
+        },
+      });
+    },
+    exec: async () => {
+      throw new Error("should not inspect runtime MCP config when shared OAuth cache already provides the server URL");
+    },
+  });
+
+  assert.equal(serverUrl, "https://oauth-preq.example.com");
+});
+
 test("resolveDefaultPreqstationServerUrl infers a shared server URL from existing runtime MCP registrations", async () => {
   const calls = [];
 
   const serverUrl = await resolveDefaultPreqstationServerUrl({
     runtimes: ["claude-code", "codex", "gemini-cli"],
     env: { PATH: process.env.PATH },
+    readFile: async () => {
+      throw new Error("no shared oauth cache");
+    },
     exec: async (command, args) => {
       calls.push({ command, args });
       if (command === "claude" && args.join(" ") === "mcp get preqstation") {
@@ -244,6 +271,9 @@ test("resolveDefaultPreqstationServerUrl returns null when installed runtimes di
   const serverUrl = await resolveDefaultPreqstationServerUrl({
     runtimes: ["claude-code", "codex"],
     env: { PATH: process.env.PATH },
+    readFile: async () => {
+      throw new Error("no shared oauth cache");
+    },
     exec: async (command, args) => {
       if (command === "claude" && args.join(" ") === "mcp get preqstation") {
         return {

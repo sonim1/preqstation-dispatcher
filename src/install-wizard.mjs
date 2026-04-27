@@ -157,6 +157,18 @@ function describeRuntime(runtime) {
 }
 
 function describeRuntimeSupportAction(action, runtime) {
+  if (action === "failed") {
+    return "failed";
+  }
+  if (action === "unavailable") {
+    return "unavailable";
+  }
+  if (action === "not_enabled") {
+    return "not enabled";
+  }
+  if (action === "not_installed") {
+    return "not installed";
+  }
   if (runtime === "claude-code") {
     if (action === "already_current") {
       return "current";
@@ -319,7 +331,7 @@ export async function runInstallWizard({
   }
 
   return {
-    ok: true,
+    ok: results.every((entry) => entry?.ok !== false),
     action: "installed",
     interactive: true,
     install_targets: plan.installTargets,
