@@ -40,6 +40,7 @@ async function createRemoteBackedRepo() {
   git(["init", "--bare"], remoteDir);
   git(["remote", "add", "origin", remoteDir], seedDir);
   git(["push", "-u", "origin", "main"], seedDir);
+  git(["symbolic-ref", "HEAD", "refs/heads/main"], remoteDir);
   execFileSync("git", ["clone", remoteDir, cloneDir], { stdio: "pipe" });
 
   return { seedDir, remoteDir, cloneDir };
