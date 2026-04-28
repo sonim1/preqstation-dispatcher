@@ -29,19 +29,19 @@ test("install hermes copies the bundled PREQ dispatch skill with provenance", as
     hermesHome,
     "skills",
     "preqstation",
-    "preq_dispatch",
+    "preqstation_dispatch",
     "SKILL.md",
   );
   const metadataFile = path.join(
     hermesHome,
     "skills",
     "preqstation",
-    "preq_dispatch",
+    "preqstation_dispatch",
     ".preqstation-dispatcher.json",
   );
 
   assert.equal(exitCode, 0);
-  assert.match(await fs.readFile(skillFile, "utf8"), /name: preq_dispatch/);
+  assert.match(await fs.readFile(skillFile, "utf8"), /name: preqstation_dispatch/);
   assert.match(await fs.readFile(skillFile, "utf8"), /preqstation-dispatcher run/);
 
   const metadata = await readJson(metadataFile);
@@ -242,7 +242,7 @@ test("sync hermes refuses user-modified skills unless forced", async () => {
     hermesHome,
     "skills",
     "preqstation",
-    "preq_dispatch",
+    "preqstation_dispatch",
     "SKILL.md",
   );
   await fs.appendFile(skillFile, "\n# local note\n", "utf8");
@@ -272,7 +272,7 @@ test("sync hermes refuses user-modified skills unless forced", async () => {
   assert.equal(forcedExitCode, 0);
   assert.equal(result.action, "updated");
   assert.match(result.backup_file, /SKILL\.md\.bak-/u);
-  assert.match(await fs.readFile(skillFile, "utf8"), /name: preq_dispatch/);
+  assert.match(await fs.readFile(skillFile, "utf8"), /name: preqstation_dispatch/);
   assert.doesNotMatch(await fs.readFile(skillFile, "utf8"), /# local note/);
 });
 
@@ -303,14 +303,14 @@ test("status hermes reports whether the installed skill is current", async () =>
       hermesHome,
       "skills",
       "preqstation",
-      "preq_dispatch",
+      "preqstation_dispatch",
       "SKILL.md",
     ),
     metadata_file: path.join(
       hermesHome,
       "skills",
       "preqstation",
-      "preq_dispatch",
+      "preqstation_dispatch",
       ".preqstation-dispatcher.json",
     ),
   });

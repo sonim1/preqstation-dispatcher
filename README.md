@@ -118,7 +118,7 @@ preqstation-dispatcher setup status
 
 Hermes must have terminal/tool execution enabled. A chat-only Hermes profile cannot create worktrees or launch local worker CLIs.
 
-`install hermes` copies the bundled `preq_dispatch` Hermes skill into `~/.hermes/skills/preqstation/preq_dispatch/SKILL.md` and writes provenance metadata next to it.
+`install hermes` copies the bundled `preqstation_dispatch` Hermes skill into `~/.hermes/skills/preqstation/preqstation_dispatch/SKILL.md` and writes provenance metadata next to it. Existing legacy `preq_dispatch` installs are migrated automatically when they were previously managed by this package.
 
 `install openclaw` runs:
 
@@ -207,7 +207,7 @@ Hermes can trigger the dispatcher by watching the same Telegram channel or group
 
 The Hermes Telegram flow is:
 
-1. PREQSTATION sends a structured `/preq_dispatch@PreqHermesBot` message to Telegram
+1. PREQSTATION sends a structured `/preqstation_dispatch@PreqHermesBot` message to Telegram
 2. Hermes receives that message in its Telegram profile
 3. Hermes invokes `preqstation-dispatcher`
 4. the dispatcher creates the worktree and launches `claude-code`, `codex`, or `gemini-cli`

@@ -23,6 +23,26 @@ test("parses telegram relay dispatch syntax", () => {
   });
 });
 
+test("parses underscore alias dispatch syntax", () => {
+  const parsed = parseDispatchMessage(
+    '!/skill preqstation_dispatch plan PROJ-327 using codex branch_name="task/proj-327/browser-notification-chuga"',
+  );
+
+  assert.deepEqual(parsed, {
+    engine: "codex",
+    taskKey: "PROJ-327",
+    projectKey: "PROJ",
+    objective: "plan",
+    branchName: "task/proj-327/browser-notification-chuga",
+    askHint: null,
+    insightPromptB64: null,
+    qaRunId: null,
+    qaTaskKeys: null,
+    rawMessage:
+      '!/skill preqstation_dispatch plan PROJ-327 using codex branch_name="task/proj-327/browser-notification-chuga"',
+  });
+});
+
 test("parses plain-language preqstation dispatch text", () => {
   const parsed = parseDispatchMessage(
     "preqstation implement PROJ-12 with codex",

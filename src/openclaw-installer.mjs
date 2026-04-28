@@ -72,6 +72,11 @@ function parseInstalledPluginVersion(stdout) {
   return null;
 }
 
+async function inspectInstalledPluginVersion({ env, exec }) {
+  const inspectResult = await exec("openclaw", ["plugins", "inspect", PLUGIN_ID], { env });
+  return parseInstalledPluginVersion(inspectResult?.stdout ?? "");
+}
+
 export async function installOpenClawPlugin({
   env = process.env,
   exec = execFileAsync,
@@ -88,8 +93,7 @@ export async function installOpenClawPlugin({
       ? { local_package_version: localPackageVersion }
       : {};
   try {
-    const inspectResult = await exec("openclaw", ["plugins", "inspect", PLUGIN_ID], { env });
-    const installedVersion = parseInstalledPluginVersion(inspectResult?.stdout ?? "");
+    const installedVersion = await inspectInstalledPluginVersion({ env, exec });
     if (installedVersion && installedVersion === packageVersion) {
       return {
         ok: true,
@@ -105,6 +109,21 @@ export async function installOpenClawPlugin({
     }
 
     await exec("openclaw", ["plugins", "update", PLUGIN_ID], { env });
+    const refreshedVersion = await inspectInstalledPluginVersion({ env, exec });
+    if (!refreshedVersion || refreshedVersion !== packageVersion) {
+      return {
+        ok: false,
+        target: "openclaw",
+        action: "failed",
+        package: PACKAGE_NAME,
+        plugin_id: PLUGIN_ID,
+        restart_command: "openclaw gateway restart",
+        installed_version: refreshedVersion ?? installedVersion,
+        package_version: packageVersion,
+        error: `OpenClaw plugin did not update to ${packageVersion}`,
+        ...localVersionDetails,
+      };
+    }
     return {
       ok: true,
       target: "openclaw",
@@ -146,6 +165,21 @@ export async function installOpenClawPlugin({
       { env },
     );
 
+    const installedVersion = await inspectInstalledPluginVersion({ env, exec });
+    if (!installedVersion || installedVersion !== packageVersion) {
+      return {
+        ok: false,
+        target: "openclaw",
+        action: "failed",
+        package: PACKAGE_NAME,
+        plugin_id: PLUGIN_ID,
+        restart_command: "openclaw gateway restart",
+        installed_version: installedVersion,
+        package_version: packageVersion,
+        error: `OpenClaw plugin did not install at ${packageVersion}`,
+        ...localVersionDetails,
+      };
+    }
     return {
       ok: true,
       target: "openclaw",
@@ -162,6 +196,21 @@ export async function installOpenClawPlugin({
     }
 
     await exec("openclaw", ["plugins", "update", PLUGIN_ID], { env });
+    const installedVersion = await inspectInstalledPluginVersion({ env, exec });
+    if (!installedVersion || installedVersion !== packageVersion) {
+      return {
+        ok: false,
+        target: "openclaw",
+        action: "failed",
+        package: PACKAGE_NAME,
+        plugin_id: PLUGIN_ID,
+        restart_command: "openclaw gateway restart",
+        installed_version: installedVersion,
+        package_version: packageVersion,
+        error: `OpenClaw plugin did not update to ${packageVersion}`,
+        ...localVersionDetails,
+      };
+    }
     return {
       ok: true,
       target: "openclaw",

@@ -4,8 +4,8 @@ const PROJECT_KEY_PATTERN = /^[A-Z][A-Z0-9_-]{0,19}$/u;
 function normalizeDispatchCommand(message) {
   return message
     .replace(/^!\s*/u, "")
-    .replace(/^\/skill\s+preqstation-dispatch\s*/iu, "")
-    .replace(/^preqstation-dispatch\s*/iu, "")
+    .replace(/^\/skill\s+preqstation(?:[-_]dispatch)?\s*/iu, "")
+    .replace(/^preqstation(?:[-_]dispatch)?\s*/iu, "")
     .replace(/^preqstation\s*/iu, "")
     .trim();
 }
@@ -94,7 +94,7 @@ function parseProjectKey(objective, taskKey, subjectToken) {
 }
 
 export function parseDispatchMessage(message) {
-  if (!/\bpreq(?:station)?\b/i.test(message)) {
+  if (!/\bpreq(?:station)?(?:[-_]dispatch)?\b/i.test(message)) {
     return null;
   }
 

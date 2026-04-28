@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
 import { execFile } from "node:child_process";
+import os from "node:os";
+import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -22,12 +24,16 @@ const RUNTIME_SKILL_TARGETS = {
     label: "Codex",
     agentId: "codex",
     agentName: "Codex",
+    homeEnvVar: "CODEX_HOME",
+    defaultHomeDir: ".codex",
   },
   "gemini-cli": {
     type: "skill",
     label: "Gemini CLI",
     agentId: "gemini-cli",
     agentName: "Gemini CLI",
+    homeEnvVar: "GEMINI_HOME",
+    defaultHomeDir: ".gemini",
   },
 };
 
@@ -61,17 +67,74 @@ function getConfiguredAgents(entry) {
     : [];
 }
 
+function resolveRuntimeHome(runtime, env = process.env) {
+  const runtimeConfig = RUNTIME_SKILL_TARGETS[runtime];
+  const baseHome =
+    (runtimeConfig?.homeEnvVar && typeof env?.[runtimeConfig.homeEnvVar] === "string"
+      ? env[runtimeConfig.homeEnvVar]
+      : null) ||
+    (typeof env?.HOME === "string" && env.HOME ? env.HOME : os.homedir());
+  return path.join(baseHome, runtimeConfig.defaultHomeDir);
+}
+
+function resolveAgentSkillPath(runtime, env = process.env) {
+  return path.join(resolveRuntimeHome(runtime, env), "skills", PREQSTATION_SKILL_NAME);
+}
+
+async function synchronizeAgentSkillBinding({
+  runtime,
+  sourceSkillPath,
+  env,
+}) {
+  if (!sourceSkillPath) {
+    return false;
+  }
+
+  const targetSkillPath = resolveAgentSkillPath(runtime, env);
+  if (targetSkillPath === sourceSkillPath) {
+    return true;
+  }
+
+  await fs.mkdir(path.dirname(targetSkillPath), { recursive: true });
+  await fs.rm(targetSkillPath, { recursive: true, force: true });
+  await fs.cp(sourceSkillPath, targetSkillPath, { recursive: true });
+  return true;
+}
+
 async function inspectAgentSkillState({ runtime, env, exec, readFile }) {
   const runtimeConfig = RUNTIME_SKILL_TARGETS[runtime];
   const installedSkills = await listInstalledSkills({ env, exec });
-  const entry = installedSkills.find((skill) => skill?.name === PREQSTATION_SKILL_NAME) ?? null;
-  const configuredAgents = getConfiguredAgents(entry);
-  const agentInstalled = configuredAgents.includes(runtimeConfig.agentName);
-  const installedVersion = entry?.path ? await readInstalledSkillVersion(entry.path, readFile) : null;
+  const agentSkillPath = resolveAgentSkillPath(runtime, env);
+  const matchingEntries = installedSkills.filter((skill) => skill?.name === PREQSTATION_SKILL_NAME);
+  const filesystemInstalledVersion = await readInstalledSkillVersion(agentSkillPath, readFile);
+  const entryWithAgent =
+    matchingEntries.find((skill) => getConfiguredAgents(skill).includes(runtimeConfig.agentName)) ?? null;
+  const entryAtAgentPath =
+    matchingEntries.find((skill) => skill?.path === agentSkillPath) ??
+    (filesystemInstalledVersion ? { path: agentSkillPath } : null);
+  const entry =
+    entryWithAgent ??
+    entryAtAgentPath ??
+    matchingEntries[0] ??
+    null;
+  const syncSourceEntry =
+    matchingEntries.find((skill) => skill?.path && skill.path !== agentSkillPath) ?? entry ?? null;
+  const configuredAgents = Array.from(new Set(matchingEntries.flatMap((skill) => getConfiguredAgents(skill))));
+  if (filesystemInstalledVersion) {
+    configuredAgents.push(runtimeConfig.agentName);
+  }
+  const normalizedConfiguredAgents = Array.from(new Set(configuredAgents));
+  const agentInstalled =
+    normalizedConfiguredAgents.includes(runtimeConfig.agentName) || filesystemInstalledVersion !== null;
+  const installedVersion =
+    (entry?.path ? await readInstalledSkillVersion(entry.path, readFile) : null) ??
+    filesystemInstalledVersion;
 
   return {
+    entries: matchingEntries,
     entry,
-    configuredAgents,
+    syncSourceEntry,
+    configuredAgents: normalizedConfiguredAgents,
     agentInstalled,
     installedVersion,
   };
@@ -180,7 +243,7 @@ async function ensureAgentSkill({
 }) {
   const runtimeConfig = RUNTIME_SKILL_TARGETS[runtime];
   const initialState = await inspectAgentSkillState({ runtime, env, exec, readFile });
-  const { entry, configuredAgents, agentInstalled, installedVersion } = initialState;
+  const { entry, syncSourceEntry, configuredAgents, agentInstalled, installedVersion } = initialState;
 
   if (!agentInstalled && !installMissing) {
     return {
@@ -207,7 +270,19 @@ async function ensureAgentSkill({
 
   if (agentInstalled) {
     await exec("npx", ["skills", "update", PREQSTATION_SKILL_NAME, "-g", "-y"], { env });
-    const refreshedState = await inspectAgentSkillState({ runtime, env, exec, readFile });
+    let refreshedState = await inspectAgentSkillState({ runtime, env, exec, readFile });
+    if (
+      entry?.path &&
+      (!refreshedState.agentInstalled ||
+        (latestVersion && refreshedState.installedVersion && refreshedState.installedVersion !== latestVersion))
+    ) {
+      await synchronizeAgentSkillBinding({
+        runtime,
+        sourceSkillPath: syncSourceEntry?.path ?? entry.path,
+        env,
+      });
+      refreshedState = await inspectAgentSkillState({ runtime, env, exec, readFile });
+    }
     if (!refreshedState.agentInstalled) {
       return {
         ok: false,
@@ -235,7 +310,15 @@ async function ensureAgentSkill({
     ["skills", "add", PREQSTATION_SKILL_REPO, "-g", "-a", runtimeConfig.agentId, "-y"],
     { env },
   );
-  const refreshedState = await inspectAgentSkillState({ runtime, env, exec, readFile });
+  let refreshedState = await inspectAgentSkillState({ runtime, env, exec, readFile });
+  if (!refreshedState.agentInstalled && refreshedState.syncSourceEntry?.path) {
+    await synchronizeAgentSkillBinding({
+      runtime,
+      sourceSkillPath: refreshedState.syncSourceEntry.path,
+      env,
+    });
+    refreshedState = await inspectAgentSkillState({ runtime, env, exec, readFile });
+  }
   if (!refreshedState.agentInstalled) {
     return {
       ok: false,

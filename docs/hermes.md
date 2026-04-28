@@ -30,7 +30,7 @@ preqstation-dispatcher setup status
 
 `install` without a target opens an interactive wizard for OpenClaw, Hermes, and optional PREQ MCP runtime setup. For scripts, use `preqstation-dispatcher install hermes`.
 
-`install hermes` installs the bundled `preq_dispatch` skill to `~/.hermes/skills/preqstation/preq_dispatch/SKILL.md`.
+`install hermes` installs the bundled `preqstation_dispatch` skill to `~/.hermes/skills/preqstation/preqstation_dispatch/SKILL.md`.
 
 When the npm package changes, update the local Hermes skill with:
 
@@ -102,7 +102,7 @@ Use the same channel or group delivery pattern as the OpenClaw Telegram path. PR
 For Bot API based receivers, enable Bot-to-Bot Communication Mode for the Hermes bot in BotFather. In a group, send an explicit command mention so the receiver is unambiguous:
 
 ```text
-/preq_dispatch@PreqHermesBot
+/preqstation_dispatch@PreqHermesBot
 task_key=PROJ-123
 objective=implement
 engine=codex
@@ -112,7 +112,7 @@ branch_name=task/proj-123-example
 Project-level insight dispatch can omit `task_key`:
 
 ```text
-/preq_dispatch@PreqHermesBot
+/preqstation_dispatch@PreqHermesBot
 project_key=PROJ
 objective=insight
 engine=codex
@@ -131,7 +131,7 @@ Use a profile instruction like this:
 ```text
 You are a PREQSTATION dispatch bridge.
 
-When a Telegram message starts with /preq_dispatch@PreqHermesBot, parse only these fields:
+When a Telegram message starts with /preqstation_dispatch@PreqHermesBot, parse only these fields:
 - project_key
 - task_key
 - objective
@@ -165,7 +165,7 @@ The dispatcher validates engines, objectives, project keys, and task keys again 
 
 The recommended projects-manager action is `Send to Hermes`. Its first implementation can reuse the existing Telegram send path:
 
-1. build the structured `/preq_dispatch@PreqHermesBot` message
+1. build the structured `/preqstation_dispatch@PreqHermesBot` message
 2. send it to the configured Telegram channel or group
 3. mark the task dispatch target as `hermes-telegram`
 4. let Hermes launch `preqstation-dispatcher`

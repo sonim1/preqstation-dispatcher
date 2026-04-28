@@ -47,8 +47,22 @@ test("install openclaw runs the OpenClaw plugin install command", async () => {
       "#!/bin/sh",
       `printf '%s\\n' "$*" >> "${logFile}"`,
       'if [ "$1 $2 $3" = "plugins inspect preqstation-dispatcher" ]; then',
-      '  echo "No plugin found with id preqstation-dispatcher" >&2',
-      "  exit 1",
+      `  count_file="${tempDir}/inspect-count"`,
+      "  count=0",
+      '  if [ -f "$count_file" ]; then count=$(cat "$count_file"); fi',
+      "  count=$((count + 1))",
+      '  printf "%s" "$count" > "$count_file"',
+      '  if [ "$count" -eq 1 ]; then',
+      '    echo "No plugin found with id preqstation-dispatcher" >&2',
+      "    exit 1",
+      "  fi",
+      '  cat <<\'EOF\'',
+      "PREQSTATION OpenClaw Dispatch",
+      "id: preqstation-dispatcher",
+      `Version: ${currentPackageVersion}`,
+      `Recorded version: ${currentPackageVersion}`,
+      "EOF",
+      "  exit 0",
       "fi",
       "exit 0",
       "",
@@ -74,6 +88,7 @@ test("install openclaw runs the OpenClaw plugin install command", async () => {
     [
       "plugins inspect preqstation-dispatcher",
       "plugins install @sonim1/preqstation-dispatcher --dangerously-force-unsafe-install",
+      "plugins inspect preqstation-dispatcher",
     ],
   );
   assert.deepEqual(JSON.parse(stdout.join("")), {
@@ -90,6 +105,81 @@ test("install openclaw runs the OpenClaw plugin install command", async () => {
 test("install openclaw updates the plugin when it already exists", async () => {
   const currentPackageVersion = await readCurrentPackageVersion();
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-openclaw-update-"));
+  const binDir = path.join(tempDir, "bin");
+  const logFile = path.join(tempDir, "openclaw-args.log");
+  await fs.mkdir(binDir, { recursive: true });
+  await writeFakeNpmBin(binDir, currentPackageVersion);
+  const openclawBin = path.join(binDir, "openclaw");
+  await fs.writeFile(
+    openclawBin,
+    [
+      "#!/bin/sh",
+      `printf '%s\\n' "$*" >> "${logFile}"`,
+      'if [ "$1 $2 $3" = "plugins inspect preqstation-dispatcher" ]; then',
+      `  count_file="${tempDir}/inspect-count"`,
+      "  count=0",
+      '  if [ -f "$count_file" ]; then count=$(cat "$count_file"); fi',
+      "  count=$((count + 1))",
+      '  printf "%s" "$count" > "$count_file"',
+      '  if [ "$count" -eq 1 ]; then',
+      "    cat <<'EOF'",
+      "PREQSTATION OpenClaw Dispatch",
+      "id: preqstation-dispatcher",
+      "Version: 0.1.15",
+      "Recorded version: 0.1.15",
+      "EOF",
+      "  else",
+      "    cat <<'EOF'",
+      "PREQSTATION OpenClaw Dispatch",
+      "id: preqstation-dispatcher",
+      `Version: ${currentPackageVersion}`,
+      `Recorded version: ${currentPackageVersion}`,
+      "EOF",
+      "  fi",
+      "  exit 0",
+      "fi",
+      "exit 0",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await fs.chmod(openclawBin, 0o755);
+
+  const stdout = [];
+  const exitCode = await runDispatcherCli({
+    argv: ["install", "openclaw"],
+    stdout: { write: (value) => stdout.push(value) },
+    stderr: { write: () => {} },
+    env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+    dispatchPreqRun: async () => {
+      throw new Error("install must not dispatch");
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(
+    (await fs.readFile(logFile, "utf8")).trim().split("\n"),
+    [
+      "plugins inspect preqstation-dispatcher",
+      "plugins update preqstation-dispatcher",
+      "plugins inspect preqstation-dispatcher",
+    ],
+  );
+  assert.deepEqual(JSON.parse(stdout.join("")), {
+    ok: true,
+    target: "openclaw",
+    action: "updated",
+    package: "@sonim1/preqstation-dispatcher",
+    plugin_id: "preqstation-dispatcher",
+    restart_command: "openclaw gateway restart",
+    installed_version: "0.1.15",
+    package_version: currentPackageVersion,
+  });
+});
+
+test("install openclaw reports failed when update completes but the recorded version does not change", async () => {
+  const currentPackageVersion = await readCurrentPackageVersion();
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-openclaw-update-fail-"));
   const binDir = path.join(tempDir, "bin");
   const logFile = path.join(tempDir, "openclaw-args.log");
   await fs.mkdir(binDir, { recursive: true });
@@ -127,23 +217,17 @@ test("install openclaw updates the plugin when it already exists", async () => {
     },
   });
 
-  assert.equal(exitCode, 0);
-  assert.deepEqual(
-    (await fs.readFile(logFile, "utf8")).trim().split("\n"),
-    [
-      "plugins inspect preqstation-dispatcher",
-      "plugins update preqstation-dispatcher",
-    ],
-  );
+  assert.equal(exitCode, 1);
   assert.deepEqual(JSON.parse(stdout.join("")), {
-    ok: true,
+    ok: false,
     target: "openclaw",
-    action: "updated",
+    action: "failed",
     package: "@sonim1/preqstation-dispatcher",
     plugin_id: "preqstation-dispatcher",
     restart_command: "openclaw gateway restart",
     installed_version: "0.1.15",
     package_version: currentPackageVersion,
+    error: `OpenClaw plugin did not update to ${currentPackageVersion}`,
   });
 });
 

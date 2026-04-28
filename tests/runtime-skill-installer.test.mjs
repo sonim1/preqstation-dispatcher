@@ -24,6 +24,7 @@ test("installRuntimeWorkerSupport reports Codex already_current when the install
     JSON.stringify({ name: "preqstation-skill", version: "0.1.35" }),
     "utf8",
   );
+  await fs.writeFile(path.join(skillDir, "SKILL.md"), "# preqstation\n", "utf8");
 
   const calls = [];
   const results = await installRuntimeWorkerSupport({
@@ -78,7 +79,7 @@ test("installRuntimeWorkerSupport updates Gemini when the skill is installed for
   const calls = [];
   const results = await installRuntimeWorkerSupport({
     runtimes: ["gemini-cli"],
-    env: { PATH: process.env.PATH },
+    env: { PATH: process.env.PATH, HOME: tempDir },
     fetchFn: createFetchVersion("0.1.35"),
     exec: async (command, args, options) => {
       calls.push({ command, args, options });
@@ -96,6 +97,11 @@ test("installRuntimeWorkerSupport updates Gemini when the skill is installed for
         };
       }
       if (command === "npx" && args.join(" ") === "skills update preqstation -g -y") {
+        await fs.writeFile(
+          path.join(skillDir, "package.json"),
+          JSON.stringify({ name: "preqstation-skill", version: "0.1.35" }),
+          "utf8",
+        );
         return { stdout: "", stderr: "" };
       }
       throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
@@ -115,7 +121,7 @@ test("installRuntimeWorkerSupport updates Gemini when the skill is installed for
       ok: true,
       target: "gemini-cli",
       action: "updated",
-      installed_version: "0.1.20",
+      installed_version: "0.1.35",
       latest_version: "0.1.35",
       skill_path: skillDir,
     },
@@ -136,7 +142,7 @@ test("installRuntimeWorkerSupport installs the Codex skill when it is missing fo
   let listCallCount = 0;
   const results = await installRuntimeWorkerSupport({
     runtimes: ["codex"],
-    env: { PATH: process.env.PATH },
+    env: { PATH: process.env.PATH, HOME: tempDir },
     fetchFn: createFetchVersion("0.1.35"),
     exec: async (command, args, options) => {
       calls.push({ command, args, options });
@@ -184,8 +190,8 @@ test("installRuntimeWorkerSupport installs the Codex skill when it is missing fo
   ]);
 });
 
-test("installRuntimeWorkerSupport fails when Codex still is not enabled after install", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-skill-codex-install-fail-"));
+test("installRuntimeWorkerSupport falls back to an agent-specific Codex skill copy when skills add does not enable the agent", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-skill-codex-fallback-"));
   const skillDir = path.join(tempDir, "preqstation");
   await fs.mkdir(skillDir, { recursive: true });
   await fs.writeFile(
@@ -195,22 +201,76 @@ test("installRuntimeWorkerSupport fails when Codex still is not enabled after in
   );
 
   const calls = [];
+  let listCallCount = 0;
   const results = await installRuntimeWorkerSupport({
     runtimes: ["codex"],
-    env: { PATH: process.env.PATH },
+    env: { PATH: process.env.PATH, HOME: tempDir },
+    fetchFn: createFetchVersion("0.1.35"),
+    exec: async (command, args, options) => {
+      calls.push({ command, args, options });
+      if (command === "npx" && args.join(" ") === "skills ls -g --json") {
+        listCallCount += 1;
+        return {
+          stdout: JSON.stringify([
+            {
+              name: "preqstation",
+              path:
+                listCallCount >= 3 ? path.join(tempDir, ".codex", "skills", "preqstation") : skillDir,
+              scope: "global",
+              agents: listCallCount >= 3 ? ["Codex"] : ["Claude Code"],
+            },
+          ]),
+          stderr: "",
+        };
+      }
+      if (
+        command === "npx" &&
+        args.join(" ") === "skills add sonim1/preqstation-skill -g -a codex -y"
+      ) {
+        return { stdout: "", stderr: "" };
+      }
+      throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+    },
+  });
+
+  const codexSkillDir = path.join(tempDir, ".codex", "skills", "preqstation");
+  assert.deepEqual(
+    calls.map(({ command, args }) => ({ command, args })),
+    [
+      { command: "npx", args: ["skills", "ls", "-g", "--json"] },
+      { command: "npx", args: ["skills", "add", "sonim1/preqstation-skill", "-g", "-a", "codex", "-y"] },
+      { command: "npx", args: ["skills", "ls", "-g", "--json"] },
+      { command: "npx", args: ["skills", "ls", "-g", "--json"] },
+    ],
+  );
+  assert.deepEqual(results, [
+    {
+      ok: true,
+      target: "codex",
+      action: "installed",
+      installed_version: "0.1.35",
+      latest_version: "0.1.35",
+      skill_path: codexSkillDir,
+    },
+  ]);
+  assert.equal(
+    JSON.parse(await fs.readFile(path.join(codexSkillDir, "package.json"), "utf8")).version,
+    "0.1.35",
+  );
+});
+
+test("installRuntimeWorkerSupport fails when Codex still is not enabled after install and fallback sync", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-skill-codex-install-fail-"));
+  const calls = [];
+  const results = await installRuntimeWorkerSupport({
+    runtimes: ["codex"],
+    env: { PATH: process.env.PATH, HOME: tempDir },
     fetchFn: createFetchVersion("0.1.35"),
     exec: async (command, args, options) => {
       calls.push({ command, args, options });
       if (command === "npx" && args.join(" ") === "skills ls -g --json") {
         return {
-          stdout: JSON.stringify([
-            {
-              name: "preqstation",
-              path: skillDir,
-              scope: "global",
-              agents: ["Claude Code"],
-            },
-          ]),
+          stdout: JSON.stringify([]),
           stderr: "",
         };
       }
@@ -237,10 +297,10 @@ test("installRuntimeWorkerSupport fails when Codex still is not enabled after in
       ok: false,
       target: "codex",
       action: "failed",
-      installed_version: "0.1.35",
+      installed_version: null,
       latest_version: "0.1.35",
-      skill_path: skillDir,
-      configured_agents: ["Claude Code"],
+      skill_path: null,
+      configured_agents: [],
       error: "preqstation skill did not become enabled for Codex after install",
     },
   ]);
@@ -259,7 +319,7 @@ test("installRuntimeWorkerSupport reports Codex not_enabled during update-only r
   const calls = [];
   const results = await installRuntimeWorkerSupport({
     runtimes: ["codex"],
-    env: { PATH: process.env.PATH },
+    env: { PATH: process.env.PATH, HOME: tempDir },
     fetchFn: createFetchVersion("0.1.35"),
     installMissing: false,
     exec: async (command, args, options) => {

@@ -20,7 +20,7 @@ const INSTALL_TARGET_CHOICES = [
   {
     name: "Hermes Agent",
     value: "hermes",
-    description: "Install the bundled Hermes preq_dispatch skill",
+    description: "Install the bundled Hermes preqstation_dispatch skill",
   },
 ];
 

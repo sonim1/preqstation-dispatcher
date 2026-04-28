@@ -1,5 +1,5 @@
 ---
-name: preq_dispatch
+name: preqstation_dispatch
 description: Parse trusted PREQSTATION dispatch messages and launch preqstation-dispatcher.
 version: 1.0.0
 metadata:
@@ -13,9 +13,9 @@ metadata:
 
 ## When to Use
 
-Use this legacy skill when a trusted Telegram dispatch message starts with `/preq_dispatch`.
+Use this skill when a trusted Telegram dispatch message starts with `/preqstation_dispatch`.
 
-Prefer `/preqstation_dispatch` for new Telegram dispatches.
+Treat the legacy `/preq_dispatch` command as an accepted alias for backwards compatibility.
 
 ## Rules
 
