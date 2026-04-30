@@ -23,6 +23,7 @@ export function renderPrompt({
   insightPromptB64,
   qaRunId,
   qaTaskKeys,
+  commentId,
 }) {
   const insightPrompt = decodePromptMetadata(insightPromptB64);
   const qaTaskKeyList =
@@ -49,6 +50,7 @@ export function renderPrompt({
     `Insight Prompt: ${insightPrompt || "N/A"}`,
     `QA Run ID: ${qaRunId ?? "N/A"}`,
     `QA Task Keys: ${qaTaskKeyList}`,
+    `Comment ID: ${commentId ?? "N/A"}`,
     "",
     "Execution Requirements:",
     `1) Work only inside ${cwd}.`,

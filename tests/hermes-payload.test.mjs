@@ -76,6 +76,46 @@ test("parses a Hermes project insight payload without a task key", () => {
   });
 });
 
+test("parses a Hermes comment payload with comment id metadata", () => {
+  const parsed = parseHermesDispatchPayload({
+    event_type: "preq.dispatch.requested",
+    dispatch: {
+      objective: "comment",
+      taskKey: "proj-789",
+      engine: "codex",
+      commentId: "comment-abc-123",
+    },
+  });
+
+  assert.deepEqual(parsed, {
+    engine: "codex",
+    taskKey: "PROJ-789",
+    projectKey: "PROJ",
+    objective: "comment",
+    branchName: null,
+    askHint: null,
+    insightPromptB64: null,
+    commentId: "comment-abc-123",
+    rawMessage:
+      'preqstation comment PROJ-789 using codex comment_id="comment-abc-123"',
+  });
+});
+
+test("rejects comment dispatches without a comment id", () => {
+  assert.throws(
+    () =>
+      parseHermesDispatchPayload({
+        event_type: "preq.dispatch.requested",
+        dispatch: {
+          objective: "comment",
+          task_key: "PROJ-789",
+          engine: "codex",
+        },
+      }),
+    /Comment ID is required for comment dispatch/,
+  );
+});
+
 test("rejects hermes-agent as an engine because Hermes is a dispatch host", () => {
   assert.throws(
     () =>

@@ -91,3 +91,19 @@ test("renders qa run metadata for project-level qa dispatches", () => {
   assert.match(prompt, /Task ID may be absent for project-level objectives/);
   assert.match(prompt, /use QA Run ID and QA Task Keys from this prompt/i);
 });
+
+test("renders comment id metadata for comment dispatches", () => {
+  const prompt = renderPrompt({
+    taskKey: "PROJ-329",
+    projectKey: "PROJ",
+    branchName: "task/proj-329/comment",
+    objective: "comment",
+    engine: "codex",
+    cwd: "/tmp/worktree/proj/task-proj-329-comment",
+    projectCwd: "/tmp/project",
+    commentId: "comment-abc-123",
+  });
+
+  assert.match(prompt, /User Objective: comment/);
+  assert.match(prompt, /Comment ID: comment-abc-123/);
+});

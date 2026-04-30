@@ -1,5 +1,5 @@
 const ENGINES = new Set(["claude-code", "codex", "gemini-cli"]);
-const TASK_OBJECTIVES = new Set(["plan", "implement", "ask", "review", "qa"]);
+const TASK_OBJECTIVES = new Set(["plan", "implement", "ask", "review", "qa", "comment"]);
 const PROJECT_OBJECTIVES = new Set(["insight", "qa"]);
 
 function normalizeString(value) {
@@ -58,6 +58,7 @@ function buildRawMessage({
   branchName,
   askHint,
   insightPromptB64,
+  commentId,
 }) {
   const subject = taskKey ?? projectKey;
   const metadata = [];
@@ -66,6 +67,7 @@ function buildRawMessage({
   if (insightPromptB64) {
     metadata.push(`insight_prompt_b64=${quoteMetadataValue(insightPromptB64)}`);
   }
+  if (commentId) metadata.push(`comment_id=${quoteMetadataValue(commentId)}`);
 
   return [
     `preqstation ${objective} ${subject} using ${engine}`,
@@ -92,9 +94,13 @@ export function parseHermesDispatchPayload(payload) {
   const askHint = normalizeString(dispatch.ask_hint ?? dispatch.askHint) || null;
   const insightPromptB64 =
     normalizeString(dispatch.insight_prompt_b64 ?? dispatch.insightPromptB64) || null;
+  const commentId = normalizeString(dispatch.comment_id ?? dispatch.commentId) || null;
 
   if (TASK_OBJECTIVES.has(objective) && !taskKey) {
     throw new Error(`Task key is required for ${objective} dispatch`);
+  }
+  if (objective === "comment" && !commentId) {
+    throw new Error("Comment ID is required for comment dispatch");
   }
   if (!projectKey) {
     throw new Error("Project key is required for Hermes dispatch");
@@ -114,6 +120,7 @@ export function parseHermesDispatchPayload(payload) {
     branchName,
     askHint,
     insightPromptB64,
+    ...(commentId ? { commentId } : {}),
     rawMessage: buildRawMessage({
       objective,
       projectKey,
@@ -122,6 +129,7 @@ export function parseHermesDispatchPayload(payload) {
       branchName,
       askHint,
       insightPromptB64,
+      commentId,
     }),
   };
 }

@@ -66,6 +66,10 @@ function parseQaTaskKeys(message) {
   return taskKeys.length > 0 ? taskKeys : null;
 }
 
+function parseCommentId(message) {
+  return parseMetadataValue(message, "comment_id") ?? parseMetadataValue(message, "commentId");
+}
+
 function parseObjective(tokens) {
   return tokens[0] || "implement";
 }
@@ -108,6 +112,8 @@ export function parseDispatchMessage(message) {
     return null;
   }
 
+  const commentId = parseCommentId(message);
+
   return {
     engine: normalizeEngine(message),
     taskKey,
@@ -118,6 +124,7 @@ export function parseDispatchMessage(message) {
     insightPromptB64: parseInsightPromptB64(message),
     qaRunId: parseQaRunId(message),
     qaTaskKeys: parseQaTaskKeys(message),
+    ...(commentId ? { commentId } : {}),
     rawMessage: message,
   };
 }

@@ -141,6 +141,35 @@ test("parses task-level qa commands with a real task key", () => {
   });
 });
 
+test("parses comment objective with comment_id metadata", () => {
+  const parsed = parseDispatchMessage(
+    '!/skill preqstation-dispatch comment PROJ-329 using codex comment_id="comment-abc-123"',
+  );
+
+  assert.deepEqual(parsed, {
+    engine: "codex",
+    taskKey: "PROJ-329",
+    projectKey: "PROJ",
+    objective: "comment",
+    branchName: null,
+    askHint: null,
+    insightPromptB64: null,
+    qaRunId: null,
+    qaTaskKeys: null,
+    commentId: "comment-abc-123",
+    rawMessage:
+      '!/skill preqstation-dispatch comment PROJ-329 using codex comment_id="comment-abc-123"',
+  });
+});
+
+test("parses comment objective with camelCase commentId metadata", () => {
+  const parsed = parseDispatchMessage(
+    "preqstation comment PROJ-330 using claude-code commentId=comment-def-456",
+  );
+
+  assert.equal(parsed.commentId, "comment-def-456");
+});
+
 test("returns null for unrelated messages", () => {
   assert.equal(
     parseDispatchMessage("what is the current weather in toronto"),

@@ -59,6 +59,7 @@ export async function dispatchPreqRun({
     insightPromptB64: parsed.insightPromptB64,
     qaRunId: parsed.qaRunId,
     qaTaskKeys: parsed.qaTaskKeys,
+    ...(parsed.commentId ? { commentId: parsed.commentId } : {}),
   });
 
   await dependencies.writePromptFile({ cwd: prepared.cwd, prompt });
