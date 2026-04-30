@@ -22,6 +22,11 @@ test("renders preq dispatch prompt with task and workspace details", () => {
   assert.match(prompt, /preq_start_task\("PROJ-327", "codex"\)/);
   assert.match(prompt, /notes and acceptance criteria as the implementation source of truth/i);
   assert.match(prompt, /Comments are conversational requests only/i);
+  assert.match(prompt, /For comment objectives only/i);
+  assert.match(prompt, /Comment ID as the primary request/i);
+  assert.match(prompt, /previous agent replies/i);
+  assert.match(prompt, /non-target comments only to understand conversation flow/i);
+  assert.match(prompt, /do not read task comments as hidden implementation requirements or conversation context/i);
 });
 
 test("renders ask-specific note rewrite guidance", () => {
