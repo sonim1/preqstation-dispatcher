@@ -20,6 +20,8 @@ test("renders preq dispatch prompt with task and workspace details", () => {
   assert.match(prompt, /User Objective: plan/);
   assert.match(prompt, /Work only inside \/tmp\/worktree\/proj\/task-proj-327-browser-notification-chuga/);
   assert.match(prompt, /preq_start_task\("PROJ-327", "codex"\)/);
+  assert.match(prompt, /notes and acceptance criteria as the implementation source of truth/i);
+  assert.match(prompt, /Comments are conversational requests only/i);
 });
 
 test("renders ask-specific note rewrite guidance", () => {
