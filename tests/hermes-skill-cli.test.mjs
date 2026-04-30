@@ -41,8 +41,11 @@ test("install hermes copies the bundled PREQ dispatch skill with provenance", as
   );
 
   assert.equal(exitCode, 0);
-  assert.match(await fs.readFile(skillFile, "utf8"), /name: preqstation_dispatch/);
-  assert.match(await fs.readFile(skillFile, "utf8"), /preqstation-dispatcher run/);
+  const skillText = await fs.readFile(skillFile, "utf8");
+  assert.match(skillText, /name: preqstation_dispatch/);
+  assert.match(skillText, /preqstation-dispatcher run/);
+  assert.match(skillText, /comment_id/);
+  assert.match(skillText, /--comment-id/);
 
   const metadata = await readJson(metadataFile);
   assert.equal(metadata.package, "@sonim1/preqstation-dispatcher");

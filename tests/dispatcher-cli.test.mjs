@@ -301,6 +301,46 @@ test("run-json uses the user's shared mapping path outside Hermes profile HOME",
   assert.equal(calls[0].sharedMappingPath, mappingPath);
 });
 
+test("run passes comment-id flag through for comment objectives", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-dispatcher-comment-cli-"));
+  const stdout = [];
+  const calls = [];
+  const exitCode = await runDispatcherCli({
+    argv: [
+      "run",
+      "--project-key",
+      "PROJ",
+      "--task-key",
+      "PROJ-50",
+      "--objective",
+      "comment",
+      "--engine",
+      "codex",
+      "--comment-id",
+      "comment-abc-123",
+    ],
+    stdout: { write: (value) => stdout.push(value) },
+    stderr: { write: () => {} },
+    env: {
+      PREQSTATION_PROJECTS_FILE: path.join(tempDir, "projects.json"),
+      PREQSTATION_WORKTREE_ROOT: path.join(tempDir, "worktrees"),
+    },
+    dispatchPreqRun: async (params) => {
+      calls.push(params);
+      return {
+        prepared: { cwd: "/tmp/worktree", branchName: "preqstation/proj/task-proj-50-comment" },
+        launch: { pid: 4242, pidFile: "/tmp/worktree/pid", logFile: "/tmp/worktree/log" },
+      };
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].parsed.objective, "comment");
+  assert.equal(calls[0].parsed.commentId, "comment-abc-123");
+  assert.equal(JSON.parse(stdout.join("")).task_key, "PROJ-50");
+});
+
 test("run rejects missing task keys for task objectives before dispatching", async () => {
   const stderr = [];
   const exitCode = await runDispatcherCli({
