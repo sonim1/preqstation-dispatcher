@@ -153,6 +153,7 @@ function parseRunFlags(options) {
       branch_name: options["branch-name"],
       ask_hint: options["ask-hint"],
       insight_prompt_b64: options["insight-prompt-b64"],
+      comment_id: options["comment-id"],
     },
   });
 }
@@ -184,7 +185,7 @@ function printUsage(stdout) {
   stdout.write(
     [
       "Usage:",
-      "  preqstation-dispatcher run --project-key PROJ --task-key PROJ-123 --objective implement --engine codex [--branch-name BRANCH]",
+      "  preqstation-dispatcher run --project-key PROJ --task-key PROJ-123 --objective implement --engine codex [--branch-name BRANCH] [--comment-id COMMENT_ID]",
       "  preqstation-dispatcher run-json --payload /path/to/payload.json",
       "  preqstation-dispatcher run-message --message 'preqstation implement PROJ-123 using codex'",
       "  preqstation-dispatcher setup set PROJ /absolute/path/to/project",
