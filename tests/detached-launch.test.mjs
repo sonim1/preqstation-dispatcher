@@ -27,6 +27,17 @@ test("builds a detached codex launch plan that reads the prompt file", () => {
   assert.match(plan.script, /\( nohup .*echo \$! >/);
 });
 
+test("builds a detached Gemini launch plan with non-interactive automation flags", () => {
+  const plan = buildDetachedLaunchPlan({
+    cwd: "/tmp/worktree/proj/task-proj-330-gemini",
+    engine: "gemini-cli",
+    platform: "darwin",
+  });
+
+  assert.match(plan.script, /GEMINI_SANDBOX=false gemini --skip-trust --yolo --allowed-mcp-server-names preqstation --extensions '' -p/);
+  assert.match(plan.script, /env -u LC_ALL -u LANG -u LC_CTYPE LANG=en_US.UTF-8 LC_CTYPE=en_US.UTF-8/);
+});
+
 test("sanitizes detached process locale for macOS", () => {
   const env = buildDetachedProcessEnv(
     {
@@ -145,6 +156,25 @@ test("gemini detached preflight rejects disconnected preqstation MCP sessions", 
       }),
     /PREQSTATION_GEMINI_HOME or PREQSTATION_WORKER_HOME/,
   );
+});
+
+test("gemini detached preflight uses debug output so non-interactive MCP list is visible", () => {
+  const calls = [];
+
+  assert.doesNotThrow(() =>
+    assertDetachedWorkerMcpReady({
+      engine: "gemini-cli",
+      env: { HOME: "/Users/kendrick" },
+      exec: (command, args) => {
+        calls.push({ command, args });
+        return "✓ preqstation: https://pm.sonim1.com/mcp (http) - Connected\n";
+      },
+    }),
+  );
+
+  assert.deepEqual(calls, [
+    { command: "sh", args: ["-lc", "gemini mcp list --debug 2>&1"] },
+  ]);
 });
 
 test("before_dispatch handles matched preq messages and parks task flow in waiting", async () => {

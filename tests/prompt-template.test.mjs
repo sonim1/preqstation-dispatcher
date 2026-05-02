@@ -114,3 +114,21 @@ test("renders comment id metadata for comment dispatches", () => {
   assert.match(prompt, /User Objective: comment/);
   assert.match(prompt, /Comment ID: comment-abc-123/);
 });
+
+test("renders Gemini CLI MCP tool naming guidance", () => {
+  const prompt = renderPrompt({
+    taskKey: "PROJ-330",
+    projectKey: "PROJ",
+    branchName: "task/proj-330/gemini",
+    objective: "ask",
+    engine: "gemini-cli",
+    cwd: "/tmp/worktree/proj/task-proj-330-gemini",
+    projectCwd: "/tmp/project",
+  });
+
+  assert.match(prompt, /Gemini CLI tool naming/);
+  assert.match(prompt, /Do not call activate_skill/);
+  assert.match(prompt, /mcp_preqstation_preq_get_task/);
+  assert.match(prompt, /mcp_preqstation_preq_start_task/);
+  assert.match(prompt, /mcp_preqstation_preq_update_task_note/);
+});

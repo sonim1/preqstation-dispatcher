@@ -35,8 +35,12 @@ const MCP_PREFLIGHT_BY_ENGINE = {
       !/Not logged in|Needs authentication|Disconnected|Unauthorized/iu.test(line),
   },
   "gemini-cli": {
-    command: "gemini",
-    args: ["mcp", "list"],
+    // Gemini CLI 0.40.x prints `mcp list` output only in interactive TTYs.
+    // In detached/non-interactive preflight, `gemini mcp list` can exit 0 with
+    // empty stdout. `--debug` emits the same MCP status lines to stderr, so
+    // merge stderr into stdout for execFileSync-based readiness parsing.
+    command: "sh",
+    args: ["-lc", "gemini mcp list --debug 2>&1"],
     installCommand:
       "gemini mcp add --scope user --transport http preqstation https://<your-domain>/mcp",
     matchLine: (line) => /\bpreqstation:/iu.test(line),
@@ -159,7 +163,7 @@ function buildEngineCommand(engine, platform = process.platform) {
     case "claude-code":
       return `${envPrefix} claude --dangerously-skip-permissions ${shellQuote(BOOTSTRAP_PROMPT)}`;
     case "gemini-cli":
-      return `${envPrefix} GEMINI_SANDBOX=false gemini -p ${shellQuote(BOOTSTRAP_PROMPT)}`;
+      return `${envPrefix} GEMINI_SANDBOX=false gemini --skip-trust --yolo --allowed-mcp-server-names preqstation --extensions '' -p ${shellQuote(BOOTSTRAP_PROMPT)}`;
     case "codex":
     default:
       return `${envPrefix} codex exec --dangerously-bypass-approvals-and-sandbox ${shellQuote(BOOTSTRAP_PROMPT)}`;

@@ -39,6 +39,19 @@ export function renderPrompt({
         "3) Task ID may be absent for project-level objectives such as insight or qa. Do not invent one.",
         "4) When Task ID is absent, skip task lifecycle mutations and operate at the project level only.",
       ];
+  const geminiToolInstructions =
+    engine === "gemini-cli"
+      ? [
+          "Gemini CLI tool naming:",
+          "- Do not call activate_skill; the lifecycle instructions are already in this prompt.",
+          "- PREQ MCP tools are exposed with the mcp_preqstation_ prefix in Gemini CLI.",
+          "- Use mcp_preqstation_preq_get_task for preq_get_task.",
+          "- Use mcp_preqstation_preq_start_task for preq_start_task.",
+          "- Use mcp_preqstation_preq_update_task_note for preq_update_task_note.",
+          "- Use mcp_preqstation_preq_update_task_status for preq_update_task_status.",
+          "- Use the same mcp_preqstation_ prefix for other PREQ tools listed by the lifecycle instructions.",
+        ]
+      : [];
 
   return [
     `Task ID: ${taskKey ?? "N/A"}`,
@@ -56,6 +69,7 @@ export function renderPrompt({
     `1) Work only inside ${cwd}.`,
     `2) Use branch ${branchName ?? "N/A"} for commits and pushes when needed.`,
     ...taskInstructions,
+    ...geminiToolInstructions,
     "5) If User Objective is ask, update the task note, keep the workflow status unchanged, and use preq_update_task_note followed by preq_update_task_status with the current task status to clear run_state when finished.",
     "6) Prototype-style asks may generate local artifacts. If an authenticated artifact provider is already available, attempt publication and keep private-or-skip by using authenticated workspace/share targets when possible. If share or quickshare-style temporary external links are available, create 7-day expiring reviewer links, record them with access=quickshare and expires=..., and do not create non-expiring anyone-with-the-link URLs. If the artifact is an HTML prototype or HTML mockup, generate at least one screenshot PNG and attempt to publish both the HTML source and screenshot. Record published links under an Artifacts: markdown block and record the artifact publishing result or skip reason in the note. If Ask Hint is present, treat it as optional note-rewrite guidance rather than a new workflow requirement.",
     "7) If User Objective is insight, inspect the current local project, call preq_list_tasks(projectKey=..., detail=full), avoid duplicate work, and create Inbox tasks with preq_create_task.",
