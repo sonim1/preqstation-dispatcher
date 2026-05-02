@@ -3,7 +3,10 @@ import { input } from "@inquirer/prompts";
 import { syncHermesSkill } from "./hermes-skill-installer.mjs";
 import { installOpenClawPlugin } from "./openclaw-installer.mjs";
 import multiSelectSubmitPrompt from "./prompts/multi-select-submit-prompt.mjs";
-import { installRuntimeWorkerSupport } from "./runtime-skill-installer.mjs";
+import {
+  inspectRuntimeExecutableHealth,
+  installRuntimeWorkerSupport,
+} from "./runtime-skill-installer.mjs";
 import {
   buildPreqstationMcpUrl,
   installRuntimeMcpServers,
@@ -157,6 +160,12 @@ function describeRuntime(runtime) {
 }
 
 function describeRuntimeSupportAction(action, runtime) {
+  if (action === "ready") {
+    return "ready";
+  }
+  if (action === "needs_attention") {
+    return "attention";
+  }
   if (action === "failed") {
     return "failed";
   }
@@ -255,6 +264,7 @@ export async function runInstallWizard({
   syncHermesSkillFn = syncHermesSkill,
   installOpenClawPluginFn = installOpenClawPlugin,
   installRuntimeWorkerSupportFn = installRuntimeWorkerSupport,
+  inspectRuntimeExecutableHealthFn = inspectRuntimeExecutableHealth,
   installRuntimeMcpServersFn = installRuntimeMcpServers,
 } = {}) {
   const plan = await promptInstallPlanFn({
@@ -314,6 +324,25 @@ export async function runInstallWizard({
         `${describeRuntime(runtime)} ${runtime === "claude-code" ? "plugin" : "skill"}`,
         describeRuntimeSupportAction(runtimeSupportAction, runtime),
       );
+      if (runtimeSupportResults[0]?.error) {
+        writeIndentedLine(outputStream, runtimeSupportResults[0].error);
+      }
+
+      const runtimeExecutableResults = await inspectRuntimeExecutableHealthFn({
+        env,
+        runtimes: [runtime],
+        launchHosts: plan.installTargets,
+      });
+      results.push(...runtimeExecutableResults);
+      const runtimeExecutableAction = runtimeExecutableResults[0]?.action;
+      writeStatusRow(
+        outputStream,
+        `${describeRuntime(runtime)} CLI`,
+        describeRuntimeSupportAction(runtimeExecutableAction, runtime),
+      );
+      if (runtimeExecutableResults[0]?.error) {
+        writeIndentedLine(outputStream, runtimeExecutableResults[0].error);
+      }
 
       const runtimeResults = await installRuntimeMcpServersFn({
         env,

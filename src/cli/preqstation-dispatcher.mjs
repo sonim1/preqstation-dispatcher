@@ -18,7 +18,10 @@ import {
   syncHermesSkill,
 } from "../hermes-skill-installer.mjs";
 import { installOpenClawPlugin } from "../openclaw-installer.mjs";
-import { installRuntimeWorkerSupport } from "../runtime-skill-installer.mjs";
+import {
+  inspectRuntimeExecutableHealth,
+  installRuntimeWorkerSupport,
+} from "../runtime-skill-installer.mjs";
 import {
   buildPreqstationMcpUrl,
   inspectRuntimeMcpServers,
@@ -227,6 +230,9 @@ function describeRuntimeTarget(target) {
 }
 
 function describeInstallResultLabel(result) {
+  if (result.category === "runtime_executable") {
+    return `${describeRuntimeTarget(result.target)} CLI`;
+  }
   if (
     result.action === "mcp_installed" ||
     result.action === "mcp_already_configured" ||
@@ -238,10 +244,18 @@ function describeInstallResultLabel(result) {
   if (result.target === "openclaw" || result.target === "hermes") {
     return describeInstallTarget(result.target);
   }
-  return `${describeRuntimeTarget(result.target)} support`;
+  return describeRuntimeTarget(result.target);
 }
 
 function describeInstallResultAction(result) {
+  if (result.category === "runtime_executable") {
+    if (result.action === "ready") {
+      return "ready";
+    }
+    if (result.action === "needs_attention") {
+      return "attention";
+    }
+  }
   if (result.action === "mcp_installed") {
     return "registered";
   }
@@ -308,6 +322,12 @@ function describeInstallResultDetails(result) {
   if (version) {
     details.push(version);
   }
+  if (result.category === "runtime_executable" && result.resolved_path) {
+    details.push(result.resolved_path);
+  }
+  if (result.category === "runtime_executable" && result.alternate_path) {
+    details.push(`stable path: ${result.alternate_path}`);
+  }
   if (result.action === "not_enabled") {
     details.push(`installed globally, not enabled for ${describeRuntimeTarget(result.target)}`);
   }
@@ -370,11 +390,7 @@ function partitionSummaryRows(entries = []) {
       entry.action === "mcp_configured" ||
       entry.action === "mcp_missing";
     const row = {
-      label: isMcpRow
-        ? describeInstallResultLabel(entry)
-        : entry.target === "openclaw" || entry.target === "hermes"
-          ? describeInstallTarget(entry.target)
-          : describeRuntimeTarget(entry.target),
+      label: describeInstallResultLabel(entry),
       status: describeInstallResultAction(entry),
       details: describeInstallResultDetails(entry).join(", "),
     };
@@ -582,6 +598,7 @@ async function handleUpdateCommand({
   syncHermesSkillFn = syncHermesSkill,
   installOpenClawPluginFn = installOpenClawPlugin,
   installRuntimeWorkerSupportFn = installRuntimeWorkerSupport,
+  inspectRuntimeExecutableHealthFn = inspectRuntimeExecutableHealth,
   inspectRuntimeMcpServersFn = inspectRuntimeMcpServers,
   resolveDefaultPreqstationServerUrlFn = resolveDefaultPreqstationServerUrl,
 }) {
@@ -625,6 +642,18 @@ async function handleUpdateCommand({
         runtimes: [runtime],
         env,
         installMissing: false,
+      });
+      return entry;
+    });
+    results.push(result);
+  }
+
+  for (const runtime of UPDATE_RUNTIME_TARGETS) {
+    const result = await runSafeUpdateTarget(runtime, async () => {
+      const [entry] = await inspectRuntimeExecutableHealthFn({
+        runtimes: [runtime],
+        env,
+        launchHosts: UPDATE_HOST_TARGETS,
       });
       return entry;
     });
@@ -715,6 +744,7 @@ export async function runDispatcherCli({
   syncHermesSkillFn = syncHermesSkill,
   installOpenClawPluginFn = installOpenClawPlugin,
   installRuntimeWorkerSupportFn = installRuntimeWorkerSupport,
+  inspectRuntimeExecutableHealthFn = inspectRuntimeExecutableHealth,
   inspectRuntimeMcpServersFn = inspectRuntimeMcpServers,
   resolveDefaultPreqstationServerUrlFn = resolveDefaultPreqstationServerUrl,
 }) {
@@ -749,6 +779,7 @@ export async function runDispatcherCli({
         syncHermesSkillFn,
         installOpenClawPluginFn,
         installRuntimeWorkerSupportFn,
+        inspectRuntimeExecutableHealthFn,
         inspectRuntimeMcpServersFn,
         resolveDefaultPreqstationServerUrlFn,
       });

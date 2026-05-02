@@ -4,7 +4,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { installRuntimeWorkerSupport } from "../src/runtime-skill-installer.mjs";
+import {
+  inspectRuntimeExecutableHealth,
+  installRuntimeWorkerSupport,
+} from "../src/runtime-skill-installer.mjs";
 
 function createFetchVersion(version) {
   return async () => ({
@@ -14,6 +17,88 @@ function createFetchVersion(version) {
     },
   });
 }
+
+test("inspectRuntimeExecutableHealth reports ready when Codex resolves to a stable path", async () => {
+  const results = await inspectRuntimeExecutableHealth({
+    runtimes: ["codex"],
+    exec: async (command, args) => {
+      assert.equal(command, "sh");
+      assert.match(args.join(" "), /which -a codex/);
+      return {
+        stdout: "/Users/kendrick/.local/bin/codex\n",
+        stderr: "",
+      };
+    },
+  });
+
+  assert.deepEqual(results, [
+    {
+      ok: true,
+      target: "codex",
+      category: "runtime_executable",
+      action: "ready",
+      executable: "codex",
+      resolved_path: "/Users/kendrick/.local/bin/codex",
+    },
+  ]);
+});
+
+test("inspectRuntimeExecutableHealth warns when Gemini resolves to an fnm multishell path for OpenClaw", async () => {
+  const results = await inspectRuntimeExecutableHealth({
+    runtimes: ["gemini-cli"],
+    launchHosts: ["openclaw"],
+    exec: async (command, args) => {
+      assert.equal(command, "sh");
+      assert.match(args.join(" "), /which -a gemini/);
+      return {
+        stdout: [
+          "/Users/kendrick/.local/state/fnm_multishells/12345/bin/gemini",
+          "/Users/kendrick/.local/share/fnm/node-versions/v24.13.0/installation/bin/gemini",
+          "",
+        ].join("\n"),
+        stderr: "",
+      };
+    },
+  });
+
+  assert.deepEqual(results, [
+    {
+      ok: true,
+      target: "gemini-cli",
+      category: "runtime_executable",
+      action: "needs_attention",
+      executable: "gemini",
+      resolved_path: "/Users/kendrick/.local/state/fnm_multishells/12345/bin/gemini",
+      alternate_path: "/Users/kendrick/.local/share/fnm/node-versions/v24.13.0/installation/bin/gemini",
+      error:
+        "OpenClaw dispatches may not inherit /Users/kendrick/.local/state/fnm_multishells/12345/bin/gemini (session-scoped fnm path). Expose /Users/kendrick/.local/share/fnm/node-versions/v24.13.0/installation/bin/gemini via /usr/local/bin/gemini or another stable PATH entry.",
+    },
+  ]);
+});
+
+test("inspectRuntimeExecutableHealth fails when Gemini is missing from PATH", async () => {
+  const results = await inspectRuntimeExecutableHealth({
+    runtimes: ["gemini-cli"],
+    launchHosts: ["openclaw"],
+    exec: async (command, args) => {
+      assert.equal(command, "sh");
+      assert.match(args.join(" "), /which -a gemini/);
+      return { stdout: "", stderr: "" };
+    },
+  });
+
+  assert.deepEqual(results, [
+    {
+      ok: false,
+      target: "gemini-cli",
+      category: "runtime_executable",
+      action: "unavailable",
+      executable: "gemini",
+      error:
+        "gemini command not found on PATH. OpenClaw dispatches will fail until gemini is installed in a stable executable location.",
+    },
+  ]);
+});
 
 test("installRuntimeWorkerSupport reports Codex already_current when the installed skill matches the latest version", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "preqstation-skill-codex-current-"));

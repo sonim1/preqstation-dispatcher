@@ -16,12 +16,14 @@ const RUNTIME_SKILL_TARGETS = {
   "claude-code": {
     type: "plugin",
     label: "Claude Code",
+    commandName: "claude",
     claudePluginId: "preqstation@preqstation",
     marketplaceName: "preqstation",
   },
   codex: {
     type: "skill",
     label: "Codex",
+    commandName: "codex",
     agentId: "codex",
     agentName: "Codex",
     homeEnvVar: "CODEX_HOME",
@@ -30,6 +32,7 @@ const RUNTIME_SKILL_TARGETS = {
   "gemini-cli": {
     type: "skill",
     label: "Gemini CLI",
+    commandName: "gemini",
     agentId: "gemini-cli",
     agentName: "Gemini CLI",
     homeEnvVar: "GEMINI_HOME",
@@ -38,6 +41,16 @@ const RUNTIME_SKILL_TARGETS = {
 };
 
 export const SUPPORTED_RUNTIME_SKILL_TARGETS = Object.keys(RUNTIME_SKILL_TARGETS);
+
+const SESSION_SCOPED_EXECUTABLE_PATH_PATTERNS = [
+  {
+    pattern: /\/\.local\/state\/fnm_multishells\//u,
+    label: "session-scoped fnm path",
+  },
+];
+
+const STABLE_FNM_EXECUTABLE_PATH_PATTERN =
+  /\/\.local\/share\/fnm\/node-versions\/.+\/installation\/bin\//u;
 
 async function fetchLatestPreqstationSkillVersion({ fetchFn = globalThis.fetch } = {}) {
   if (typeof fetchFn !== "function") {
@@ -59,6 +72,74 @@ async function listInstalledSkills({ env, exec }) {
   const result = await exec("npx", ["skills", "ls", "-g", "--json"], { env });
   const parsed = JSON.parse(result?.stdout ?? "[]");
   return Array.isArray(parsed) ? parsed : [];
+}
+
+async function listExecutablePaths({ commandName, env, exec }) {
+  const result = await exec(
+    "sh",
+    ["-lc", `which -a ${commandName} 2>/dev/null || true`],
+    { env },
+  );
+  return Array.from(
+    new Set(
+      String(result?.stdout ?? "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function describeLaunchHosts(hosts = []) {
+  if (!hosts.length) {
+    return null;
+  }
+  return hosts
+    .map((host) => {
+      if (host === "openclaw") {
+        return "OpenClaw";
+      }
+      if (host === "hermes") {
+        return "Hermes Agent";
+      }
+      return RUNTIME_SKILL_TARGETS[host]?.label ?? host;
+    })
+    .join(", ");
+}
+
+function findSessionScopedExecutableWarning(resolvedPath) {
+  if (!resolvedPath) {
+    return null;
+  }
+  return (
+    SESSION_SCOPED_EXECUTABLE_PATH_PATTERNS.find(({ pattern }) => pattern.test(resolvedPath)) ?? null
+  );
+}
+
+function findStableFnmAlternative(executablePaths = []) {
+  return executablePaths.find((candidate) => STABLE_FNM_EXECUTABLE_PATH_PATTERN.test(candidate)) ?? null;
+}
+
+function buildExecutableMissingError({ commandName, launchHosts }) {
+  const launchHostLabel = describeLaunchHosts(launchHosts);
+  if (launchHostLabel) {
+    return `${commandName} command not found on PATH. ${launchHostLabel} dispatches will fail until ${commandName} is installed in a stable executable location.`;
+  }
+  return `${commandName} command not found on PATH. Install ${commandName} before dispatching PREQ tasks with this runtime.`;
+}
+
+function buildSessionScopedPathError({
+  commandName,
+  resolvedPath,
+  stableAlternative,
+  launchHosts,
+  warningLabel,
+}) {
+  const launchHostLabel = describeLaunchHosts(launchHosts) ?? "Service-hosted";
+  const stableHint = stableAlternative
+    ? ` Expose ${stableAlternative} via /usr/local/bin/${commandName} or another stable PATH entry.`
+    : ` Move ${commandName} into /usr/local/bin/${commandName} or another stable PATH entry.`;
+  return `${launchHostLabel} dispatches may not inherit ${resolvedPath} (${warningLabel}).${stableHint}`;
 }
 
 function getConfiguredAgents(entry) {
@@ -376,6 +457,81 @@ export async function installRuntimeWorkerSupport({
         installMissing,
       }),
     );
+  }
+
+  return results;
+}
+
+export async function inspectRuntimeExecutableHealth({
+  runtimes,
+  env = process.env,
+  exec = execFileAsync,
+  launchHosts = [],
+} = {}) {
+  const runtimeTargets = Array.from(new Set((runtimes ?? []).filter(Boolean)));
+  const results = [];
+
+  for (const runtime of runtimeTargets) {
+    const runtimeConfig = RUNTIME_SKILL_TARGETS[runtime];
+    if (!runtimeConfig) {
+      throw new Error(
+        `Unsupported runtime target: ${runtime}. Expected one of ${SUPPORTED_RUNTIME_SKILL_TARGETS.join(", ")}`,
+      );
+    }
+
+    const executablePaths = await listExecutablePaths({
+      commandName: runtimeConfig.commandName,
+      env,
+      exec,
+    });
+    const resolvedPath = executablePaths[0] ?? null;
+
+    if (!resolvedPath) {
+      results.push({
+        ok: false,
+        target: runtime,
+        category: "runtime_executable",
+        action: "unavailable",
+        executable: runtimeConfig.commandName,
+        error: buildExecutableMissingError({
+          commandName: runtimeConfig.commandName,
+          launchHosts,
+        }),
+      });
+      continue;
+    }
+
+    const sessionScopedWarning =
+      launchHosts.includes("openclaw") ? findSessionScopedExecutableWarning(resolvedPath) : null;
+    if (sessionScopedWarning) {
+      const stableAlternative = findStableFnmAlternative(executablePaths);
+      results.push({
+        ok: true,
+        target: runtime,
+        category: "runtime_executable",
+        action: "needs_attention",
+        executable: runtimeConfig.commandName,
+        resolved_path: resolvedPath,
+        alternate_path: stableAlternative,
+        error: buildSessionScopedPathError({
+          commandName: runtimeConfig.commandName,
+          resolvedPath,
+          stableAlternative,
+          launchHosts,
+          warningLabel: sessionScopedWarning.label,
+        }),
+      });
+      continue;
+    }
+
+    results.push({
+      ok: true,
+      target: runtime,
+      category: "runtime_executable",
+      action: "ready",
+      executable: runtimeConfig.commandName,
+      resolved_path: resolvedPath,
+    });
   }
 
   return results;

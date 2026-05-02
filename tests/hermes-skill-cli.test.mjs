@@ -322,6 +322,7 @@ test("status hermes reports whether the installed skill is current", async () =>
 test("update refreshes installed surfaces without installing missing ones", async () => {
   const stdout = [];
   const runtimeCalls = [];
+  const runtimeExecutableCalls = [];
 
   const exitCode = await runDispatcherCli({
     argv: ["update"],
@@ -354,6 +355,47 @@ test("update refreshes installed surfaces without installing missing ones", asyn
         return [{ ok: true, target: runtime, action: "updated", installed_version: "0.1.37", latest_version: "0.1.38" }];
       }
       return [{ ok: true, target: runtime, action: "not_installed", latest_version: "0.1.38" }];
+    },
+    inspectRuntimeExecutableHealthFn: async ({ runtimes, launchHosts }) => {
+      runtimeExecutableCalls.push({ runtimes, launchHosts });
+      const [runtime] = runtimes;
+      if (runtime === "claude-code") {
+        return [
+          {
+            ok: true,
+            target: runtime,
+            category: "runtime_executable",
+            action: "ready",
+            executable: "claude",
+            resolved_path: "/Users/kendrick/.local/bin/claude",
+          },
+        ];
+      }
+      if (runtime === "codex") {
+        return [
+          {
+            ok: true,
+            target: runtime,
+            category: "runtime_executable",
+            action: "ready",
+            executable: "codex",
+            resolved_path: "/Users/kendrick/.local/bin/codex",
+          },
+        ];
+      }
+      return [
+        {
+          ok: true,
+          target: runtime,
+          category: "runtime_executable",
+          action: "needs_attention",
+          executable: "gemini",
+          resolved_path: "/Users/kendrick/.local/state/fnm_multishells/12345/bin/gemini",
+          alternate_path: "/Users/kendrick/.local/share/fnm/node-versions/v24.13.0/installation/bin/gemini",
+          error:
+            "OpenClaw, Hermes Agent dispatches may not inherit /Users/kendrick/.local/state/fnm_multishells/12345/bin/gemini (session-scoped fnm path). Expose /Users/kendrick/.local/share/fnm/node-versions/v24.13.0/installation/bin/gemini via /usr/local/bin/gemini or another stable PATH entry.",
+        },
+      ];
     },
     inspectRuntimeMcpServersFn: async ({ runtimes }) => {
       const [runtime] = runtimes;
@@ -411,6 +453,11 @@ test("update refreshes installed surfaces without installing missing ones", asyn
     { runtimes: ["codex"], installMissing: false },
     { runtimes: ["gemini-cli"], installMissing: false },
   ]);
+  assert.deepEqual(runtimeExecutableCalls, [
+    { runtimes: ["claude-code"], launchHosts: ["openclaw", "hermes"] },
+    { runtimes: ["codex"], launchHosts: ["openclaw", "hermes"] },
+    { runtimes: ["gemini-cli"], launchHosts: ["openclaw", "hermes"] },
+  ]);
   assert.deepEqual(
     result.results.map((entry) => ({ target: entry.target, action: entry.action })),
     [
@@ -419,6 +466,9 @@ test("update refreshes installed surfaces without installing missing ones", asyn
       { target: "claude-code", action: "already_current" },
       { target: "codex", action: "updated" },
       { target: "gemini-cli", action: "not_installed" },
+      { target: "claude-code", action: "ready" },
+      { target: "codex", action: "ready" },
+      { target: "gemini-cli", action: "needs_attention" },
       { target: "claude-code", action: "mcp_configured" },
       { target: "codex", action: "mcp_configured" },
       { target: "gemini-cli", action: "mcp_missing" },
@@ -468,6 +518,46 @@ test("update renders a friendly summary for interactive tty output", async () =>
           installed_version: "0.1.38",
           latest_version: "0.1.38",
           configured_agents: ["Claude Code"],
+        },
+      ];
+    },
+    inspectRuntimeExecutableHealthFn: async ({ runtimes }) => {
+      const [runtime] = runtimes;
+      if (runtime === "claude-code") {
+        return [
+          {
+            ok: true,
+            target: runtime,
+            category: "runtime_executable",
+            action: "ready",
+            executable: "claude",
+            resolved_path: "/Users/kendrick/.local/bin/claude",
+          },
+        ];
+      }
+      if (runtime === "codex") {
+        return [
+          {
+            ok: true,
+            target: runtime,
+            category: "runtime_executable",
+            action: "ready",
+            executable: "codex",
+            resolved_path: "/Users/kendrick/.local/bin/codex",
+          },
+        ];
+      }
+      return [
+        {
+          ok: true,
+          target: runtime,
+          category: "runtime_executable",
+          action: "needs_attention",
+          executable: "gemini",
+          resolved_path: "/Users/kendrick/.local/state/fnm_multishells/12345/bin/gemini",
+          alternate_path: "/Users/kendrick/.local/share/fnm/node-versions/v24.13.0/installation/bin/gemini",
+          error:
+            "OpenClaw, Hermes Agent dispatches may not inherit /Users/kendrick/.local/state/fnm_multishells/12345/bin/gemini (session-scoped fnm path). Expose /Users/kendrick/.local/share/fnm/node-versions/v24.13.0/installation/bin/gemini via /usr/local/bin/gemini or another stable PATH entry.",
         },
       ];
     },
@@ -528,8 +618,14 @@ test("update renders a friendly summary for interactive tty output", async () =>
   assert.match(rendered, /Hermes Agent\s+current\s+0\.1\.22/);
   assert.match(rendered, /Worker Support/);
   assert.match(rendered, /Claude Code\s+unavailable\s+claude command not found/);
+  assert.match(rendered, /Claude Code CLI\s+ready\s+\/Users\/kendrick\/\.local\/bin\/claude/);
   assert.match(rendered, /Codex\s+updated\s+0\.1\.37 -> 0\.1\.38/);
+  assert.match(rendered, /Codex CLI\s+ready\s+\/Users\/kendrick\/\.local\/bin\/codex/);
   assert.match(rendered, /Gemini CLI\s+not enabled\s+0\.1\.38, installed globally, not enabled for Gemini CLI/);
+  assert.match(
+    rendered,
+    /Gemini CLI CLI\s+attention\s+\/Users\/kendrick\/\.local\/state\/fnm_multishells\/12345\/bin\/gemini, stable path: \/Users\/kendrick\/\.local\/share\/fnm\/node-versions\/v24\.13\.0\/installation\/bin\/gemini, OpenClaw, Hermes Agent dispatches may not inherit/,
+  );
   assert.match(rendered, /MCP/);
   assert.match(rendered, /Claude Code MCP\s+configured\s+https:\/\/preq\.example\.com\/mcp, status: Connected/);
   assert.match(rendered, /Codex MCP\s+configured\s+https:\/\/preq\.example\.com\/mcp, status: enabled, auth: OAuth/);

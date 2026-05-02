@@ -123,6 +123,24 @@ test("runInstallWizard executes selected host installs and runtime MCP setup", a
         action: "installed",
       }));
     },
+    inspectRuntimeExecutableHealthFn: async ({ env, runtimes, launchHosts }) => {
+      calls.push(["runtime-cli", env, runtimes, launchHosts]);
+      return runtimes.map((runtime) => ({
+        ok: true,
+        target: runtime,
+        category: "runtime_executable",
+        action: runtime === "gemini-cli" ? "needs_attention" : "ready",
+        executable: runtime === "gemini-cli" ? "gemini" : "codex",
+        resolved_path:
+          runtime === "gemini-cli"
+            ? "/Users/kendrick/.local/state/fnm_multishells/12345/bin/gemini"
+            : "/Users/kendrick/.local/bin/codex",
+        error:
+          runtime === "gemini-cli"
+            ? "OpenClaw dispatches may not inherit /Users/kendrick/.local/state/fnm_multishells/12345/bin/gemini (session-scoped fnm path). Expose /Users/kendrick/.local/share/fnm/node-versions/v24.13.0/installation/bin/gemini via /usr/local/bin/gemini or another stable PATH entry."
+            : null,
+      }));
+    },
     installRuntimeMcpServersFn: async ({ env, runtimes, serverUrl }) => {
       calls.push(["mcp", env, runtimes, serverUrl]);
       return runtimes.map((runtime) => ({
@@ -137,14 +155,16 @@ test("runInstallWizard executes selected host installs and runtime MCP setup", a
     ["openclaw", { PATH: process.env.PATH }],
     ["hermes", { PATH: process.env.PATH }, true],
     ["support", { PATH: process.env.PATH }, ["codex"]],
+    ["runtime-cli", { PATH: process.env.PATH }, ["codex"], ["openclaw", "hermes"]],
     ["mcp", { PATH: process.env.PATH }, ["codex"], "https://preq.example.com"],
     ["support", { PATH: process.env.PATH }, ["gemini-cli"]],
+    ["runtime-cli", { PATH: process.env.PATH }, ["gemini-cli"], ["openclaw", "hermes"]],
     ["mcp", { PATH: process.env.PATH }, ["gemini-cli"], "https://preq.example.com"],
   ]);
   assert.deepEqual(result.install_targets, ["openclaw", "hermes"]);
   assert.deepEqual(result.runtime_engines, ["codex", "gemini-cli"]);
   assert.equal(result.mcp_url, "https://preq.example.com/mcp");
-  assert.equal(result.results.length, 6);
+  assert.equal(result.results.length, 8);
   assert.match(output.join(""), /PREQ MCP endpoint/);
   assert.match(output.join(""), /https:\/\/preq\.example\.com\/mcp/);
   assert.match(output.join(""), /Dispatcher hosts/);
@@ -152,8 +172,11 @@ test("runInstallWizard executes selected host installs and runtime MCP setup", a
   assert.match(output.join(""), /Hermes Agent\s+installed/);
   assert.match(output.join(""), /Worker runtimes/);
   assert.match(output.join(""), /Codex skill\s+installed/);
+  assert.match(output.join(""), /Codex CLI\s+ready/);
   assert.match(output.join(""), /Codex MCP\s+registered/);
   assert.match(output.join(""), /Gemini CLI skill\s+installed/);
+  assert.match(output.join(""), /Gemini CLI CLI\s+attention/);
+  assert.match(output.join(""), /OpenClaw dispatches may not inherit/);
   assert.match(output.join(""), /Gemini CLI MCP\s+registered/);
 });
 
@@ -235,6 +258,16 @@ test("runInstallWizard reports failure when runtime support post-check does not 
         target: "codex",
         action: "failed",
         error: "preqstation skill did not become enabled for Codex after install",
+      },
+    ],
+    inspectRuntimeExecutableHealthFn: async () => [
+      {
+        ok: true,
+        target: "codex",
+        category: "runtime_executable",
+        action: "ready",
+        executable: "codex",
+        resolved_path: "/Users/kendrick/.local/bin/codex",
       },
     ],
     installRuntimeMcpServersFn: async () => [
