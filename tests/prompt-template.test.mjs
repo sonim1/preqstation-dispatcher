@@ -51,7 +51,11 @@ test("renders ask-specific note rewrite guidance", () => {
   assert.match(prompt, /private-or-skip/i);
   assert.match(prompt, /HTML prototype|HTML mockup/i);
   assert.match(prompt, /screenshot/i);
-  assert.match(prompt, /Artifacts:/i);
+  assert.match(prompt, /structured artifacts array/i);
+  assert.match(prompt, /preq_update_task_note/);
+  assert.match(prompt, /preq_complete_task/);
+  assert.match(prompt, /preq_update_qa_run/);
+  assert.match(prompt, /free of Artifacts: markdown blocks/i);
   assert.match(prompt, /7-day expiring reviewer links/i);
   assert.match(prompt, /access=quickshare/i);
   assert.match(prompt, /expires=\.\.\./i);
